@@ -142,7 +142,8 @@ def check_md_links(md_files: list[str]) -> tuple[bool, str]:
 # --- -ize spelling in prose (R-lang-04), and the British nouns that go with it. Two
 #     fixed word lists, not a general regex, which would hit code and option names
 #     that must stay as they are (`color` in CSS, `auto-optimise-store` in Nix). Only
-#     .md files are checked, for the same reason. ---
+#     the prose of .md files is checked, for the same reason: fenced code blocks and
+#     inline code spans are skipped. ---
 WRONG_VERBS = [
     stem + ending
     for stem in [
@@ -173,15 +174,35 @@ WRONG_NOUNS = [
 ]
 
 
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+CODE_SPAN = re.compile(r"(`+).+?\1")
+
+
+def prose_lines(path: str) -> list[tuple[int, str, str]]:
+    """Line number, line and its prose (code spans removed), outside fenced blocks."""
+    lines, fence = [], None
+    for n, line in enumerate(read_lines(path), 1):
+        if m := FENCE.match(line):
+            marker = m.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+            continue
+        if fence is None:
+            lines.append((n, line, CODE_SPAN.sub("", line)))
+    return lines
+
+
 def grep_words(files: list[str], words: list[str]) -> list[str]:
-    """Like `grep -nwH WORD` for each word in turn: whole words, case-sensitive."""
+    """Like `grep -nwH WORD` over the prose of each file: whole words, case-sensitive."""
     pattern = re.compile(
         r"(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, words)) + r")(?![A-Za-z0-9_])"
     )
     hits = []
     for f in files:
-        for n, line in enumerate(read_lines(f), 1):
-            if pattern.search(line):
+        for n, line, prose in prose_lines(f):
+            if pattern.search(prose):
                 hits.append(f"{f}:{n}:{line}")
     return hits
 
