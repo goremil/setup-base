@@ -26,7 +26,7 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 - **R-md-01**: Emphasis MUST be `**bold**` and `_italic_`. Check: 4 (MD049, MD050 in every lint profile). Since: not recorded.
 - **R-md-02**: Tables MUST be compact: `| a | b |`, delimiter row `| --- | --- |`, one space inside each pipe, no column padding. Check: 4 (MD060 `compact`). Since: 2026-10-18.
 - **R-md-03**: Prose MUST be one paragraph per line, without hard wraps at a fixed column. Check: 0 (MD013 is off; a formatter is open). Since: 2026-10-20.
-- **R-md-05**: Every repository MUST carry its own complete, flattened lint configs, taken from the shared profiles; `extends` MUST NOT be used in a repository. Check: 0 + report (a drift check). Since: 2026-10-24.
+- **R-md-05**: Every repository MUST take its lint configs from the shared profiles, pinned through `setup-base` (managed, T3), with any change recorded as a deviation; `extends` MUST NOT be used in a repository. Check: 4 (`repo-check`: a tracked own config needs a recorded deviation). Since: 2026-10-24; managed since 2026-10-25.
 - **R-md-06**: Inside a repository the forge profile MUST apply at the root and in `docs/`, the agent profile in `.agents/`; inline disable comments SHOULD NOT be used. Check: 0. Since: 2026-10-24.
 
 ## Links
