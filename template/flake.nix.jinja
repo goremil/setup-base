@@ -1,41 +1,9 @@
 {
   description = "{{ description }}";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  # The managed set: check tools, repo-check, hooks' commands, formatter and
+  # checks. `nix flake update base` brings a new version; flake.lock pins it.
+  inputs.base.url = "git+https://github.com/goremil/setup-base";
 
-  outputs =
-    { self, nixpkgs }:
-    let
-      systems = [ "x86_64-linux" ];
-      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-    in
-    {
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
-
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-{%- if visibility == 'public' %}
-            pkgs.reuse
-{%- endif %}
-            pkgs.nixfmt
-          ];
-        };
-      });
-
-      checks = forAllSystems (pkgs: {
-        nixfmt = pkgs.runCommand "nixfmt-check" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-          find ${self} -name '*.nix' -exec nixfmt --check {} +
-          touch $out
-        '';
-{%- if visibility == 'public' %}
-
-        reuse = pkgs.runCommand "reuse-lint" { nativeBuildInputs = [ pkgs.reuse ]; } ''
-          cd ${self}
-          reuse lint
-          touch $out
-        '';
-{%- endif %}
-      });
-    };
+  outputs = { self, base }: base.lib.mkRepo { inherit self; };
 }

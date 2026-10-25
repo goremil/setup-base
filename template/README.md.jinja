@@ -9,9 +9,10 @@ See [AGENTS.md](AGENTS.md) for how to work in this repository.
 ## Development
 
 ```sh
-nix develop          # dev shell
-nix flake check      # what CI runs
-nix fmt -- <files>   # format Nix files
+nix develop             # every check tool; enables the git hooks
+repo-check              # every check, one report; -v for each output
+nix fmt -- <files>      # format Nix files
+nix flake update base   # the next version of the managed set
 ```
 {%- if visibility == 'public' %}
 
