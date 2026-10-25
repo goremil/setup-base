@@ -22,6 +22,8 @@ tooling and the Copier template for new repositories. See
 
 | Path | Content |
 | --- | --- |
+| `rules/` | The rule core: requirements with IDs, one file per topic |
+| `rationale/` | Reasons and tests behind each requirement, same file names as `rules/` |
 | `flake.nix` | Outputs: dev shell, `formatter`, `checks` |
 | `REUSE.toml`, `LICENSES/` | Licence of each path |
 | `.forgejo/workflows/` | CI: `nix flake check` on every push |
