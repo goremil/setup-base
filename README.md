@@ -40,9 +40,10 @@ names another.
 ## Development
 
 ```sh
-nix develop          # tools: reuse, nixfmt, markdownlint-cli2, copier
-nix flake check      # what CI runs
-nix fmt              # format Nix files
+nix develop               # every check tool, plus copier
+repo-check                # every check, one report; -v for each check's output
+nix flake check           # the flake checks and the fault-injection tests
+nix fmt -- <files>        # format Nix files
 ```
 
 ## Licence

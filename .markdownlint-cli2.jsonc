@@ -1,0 +1,8 @@
+// Interim: markdownlint defaults without the line-length rule, since the rule
+// files hold one requirement per line. Replaced by the forge profile when the
+// lint profiles move into this repository.
+{
+  "config": {
+    "MD013": false
+  }
+}

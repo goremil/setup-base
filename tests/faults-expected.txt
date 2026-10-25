@@ -1,0 +1,20 @@
+nixfmt --check
+statix check
+deadnix --fail
+markdownlint
+yamllint
+shellcheck
+ruff check
+ruff format --check
+no broken relative .md links
+-ize spelling in prose
+no private-key material
+gitleaks (staged)
+gitleaks (history)
+no merge-conflict markers
+git hooks stay executable
+balanced Markdown code fences
+no huge files
+no trailing whitespace (except .md)
+final newline
+extra check

@@ -6,34 +6,46 @@
   outputs =
     { self, nixpkgs }:
     let
-      systems = [ "x86_64-linux" ];
-      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      lib = import ./lib {
+        inherit nixpkgs;
+        base = self;
+      };
+      # setup-base is built on itself. repo-check.py names the key patterns it
+      # looks for, so it is excluded from that check.
+      repo = lib.mkRepo {
+        inherit self;
+        extraPackages = pkgs: [ pkgs.copier ];
+        exclude = {
+          keys = [ "^tools/repo-check\\.py$" ];
+          # The licence includes have no final newline on purpose: the included
+          # text brings its own.
+          final-newline = [ "^template/[^/]*LICENSES[^/]*/" ];
+        };
+      };
+      forAllSystems =
+        f: nixpkgs.lib.genAttrs [ "x86_64-linux" ] (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      inherit lib;
+      inherit (repo) formatter devShells;
 
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-            pkgs.reuse
-            pkgs.nixfmt
-            pkgs.markdownlint-cli2
-            pkgs.copier
-          ];
+      packages = forAllSystems (pkgs: {
+        repo-check = pkgs.writeScriptBin "repo-check" (
+          "#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./tools/repo-check.py
+        );
+        commit-msg-check = pkgs.writeShellApplication {
+          name = "commit-msg-check";
+          text = builtins.readFile ./tools/commit-msg-check.sh;
         };
       });
 
-      checks = forAllSystems (pkgs: {
-        reuse = pkgs.runCommand "reuse-lint" { nativeBuildInputs = [ pkgs.reuse ]; } ''
-          cd ${self}
-          reuse lint
-          touch $out
-        '';
-
-        nixfmt = pkgs.runCommand "nixfmt-check" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-          find ${self} -name '*.nix' -exec nixfmt --check {} +
-          touch $out
-        '';
-      });
+      checks = forAllSystems (
+        pkgs:
+        repo.checks.${pkgs.stdenv.hostPlatform.system}
+        // import ./tests {
+          inherit pkgs lib;
+          inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-check commit-msg-check;
+        }
+      );
     };
 }

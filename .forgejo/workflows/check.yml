@@ -1,4 +1,5 @@
-# Runs `nix flake check` on every push and pull request.
+# Runs repo-check -v (every check, `nix flake check` included) in the dev shell
+# on every push and pull request (R-check-03, R-check-11).
 #
 # Codeberg's shared runners use their own labels (codeberg-tiny/-small/-medium,
 # https://codeberg.org/actions/meta), not `ubuntu-latest`. Nix is installed by
@@ -13,10 +14,12 @@ on:
   pull_request:
 
 jobs:
-  flake-check:
+  repo-check:
     runs-on: codeberg-small
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
 
       - name: Install Nix
         run: |
@@ -24,5 +27,5 @@ jobs:
             | sh -s -- install linux --extra-conf "sandbox = false" --init none --no-confirm
           echo /nix/var/nix/profiles/default/bin >> "$GITHUB_PATH"
 
-      - name: nix flake check
-        run: nix flake check -L
+      - name: repo-check
+        run: nix develop --command repo-check -v

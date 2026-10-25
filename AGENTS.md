@@ -16,7 +16,8 @@ tooling and the Copier template for new repositories. See
 - Files are written in English with `-ize` spelling.
 - A change to a managed part reaches every descendant on its next
   `nix flake update base`, so it is reviewed as a change to all of them.
-- `nix flake check` passes before a commit.
+- `nix develop --command repo-check` passes before a commit; a check that is
+  added or changed gets a fault in `tests/` (R-check-12).
 
 ## Layout
 
@@ -25,6 +26,9 @@ tooling and the Copier template for new repositories. See
 | `rules/` | The rule core: requirements with IDs, one file per topic |
 | `rationale/` | Reasons and tests behind each requirement, same file names as `rules/` |
 | `copier.yml`, `template/` | The Copier template: questions, and the files of a new repository |
-| `flake.nix` | Outputs: dev shell, `formatter`, `checks` |
+| `lib/` | `lib.mkRepo`: a descendant's dev shell, `formatter` and `checks` from the managed set |
+| `tools/` | The managed check scripts: `repo-check.py` (every check, one report) and `commit-msg-check.sh` |
+| `tests/` | Fault injection for the check scripts, run by `nix flake check` |
+| `flake.nix` | Outputs: `lib`, `packages` (the check scripts), dev shell, `formatter`, `checks`; this repository uses its own `lib.mkRepo` |
 | `REUSE.toml`, `LICENSES/` | Licence of each path |
-| `.forgejo/workflows/` | CI: `nix flake check` on every push |
+| `.forgejo/workflows/` | CI: `repo-check -v` in the dev shell on every push |
