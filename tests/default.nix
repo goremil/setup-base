@@ -142,6 +142,18 @@ in
       + expect "ignores only" (rules { markdownlint.ignores = [ "x/**" ]; }) [ ]
       + expect "null" (rules { markdownlint = null; }) [ "R-md-05" ]
       +
+        expect "folder overrides"
+          (rules {
+            markdownlint.directories.docs = {
+              profile = "forge";
+              overrides.MD041 = false;
+            };
+          })
+          [
+            "R-md-05"
+            "R-md-06"
+          ]
+      +
         expect "all"
           (rules {
             markdownlint = {

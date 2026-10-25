@@ -28,7 +28,7 @@ base.lib.mkRepo {
 }
 ```
 
-`markdownlint = null` turns the links off. A tracked `.markdownlint-cli2.jsonc` is left alone, so a repository can keep its own file while it moves over. `repo-check` wants a row in the repository's AGENTS.md "Deviations" for each of these departures: `overrides`, a tracked own config or `null` (R-md-05), another root profile or other `directories` (R-md-06).
+A folder in `directories` takes a profile name or the same settings as the root, `{ profile; overrides; ignores; }`; its config replaces the root's in that folder, so a root override it still needs is repeated there. `markdownlint = null` turns the links off. A tracked `.markdownlint-cli2.jsonc` is left alone, so a repository can keep its own file while it moves over. `repo-check` wants a row in the repository's AGENTS.md "Deviations" for each of these departures: `overrides` at the root or in a folder, a tracked own config or `null` (R-md-05), another root profile or other `directories` (R-md-06).
 
 `--fix` caution: MD044 is fixable, so `--fix` rewrites every lowercase match outside code, identifiers included. Put identifiers in backticks first, or fix with MD044 off for that run, and review the diff.
 

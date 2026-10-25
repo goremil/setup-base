@@ -47,17 +47,18 @@ in
       exclude ? { },
       hugeFileKiB ? 1024,
       # { profile; overrides; ignores; directories; } for markdownlint, or
-      # null for none. The dev
-      # shell links .markdownlint-cli2.jsonc (gitignored) to the generated
-      # file; a tracked file of that name is left alone. Overrides are
-      # deviations and go into the repository's AGENTS.md.
+      # null for none; `directories` maps a folder to a profile name or to
+      # { profile; overrides; ignores; }. The dev shell links
+      # .markdownlint-cli2.jsonc (gitignored) to the generated file; a
+      # tracked file of that name is left alone. Overrides are deviations and
+      # go into the repository's AGENTS.md.
       markdownlint ? { },
     }:
     let
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       hasReuse = builtins.pathExists (self + "/REUSE.toml");
       # The root gets `profile` with `overrides` and `ignores`; each folder in
-      # `directories` that exists gets its own profile (R-md-06: agent in
+      # `directories` that exists gets its own settings (R-md-06: agent in
       # .agents/). markdownlint-cli2 lets a folder's config replace its
       # parent's.
       lint = {
@@ -66,6 +67,9 @@ in
         };
       }
       // (if markdownlint == null then { } else markdownlint);
+      dirSettings = lib.mapAttrs (
+        _: s: if builtins.isString s then { profile = s; } else s
+      ) lint.directories;
       lintFor =
         pkgs: dir: settings:
         let
@@ -87,9 +91,7 @@ in
         pkgs:
         lib.optionalString (markdownlint != null) (
           lintFor pkgs "." (builtins.removeAttrs lint [ "directories" ])
-          + lib.concatStrings (
-            lib.mapAttrsToList (dir: profile: lintFor pkgs dir { inherit profile; }) lint.directories
-          )
+          + lib.concatStrings (lib.mapAttrsToList (lintFor pkgs) dirSettings)
         );
       # Departures from the rule core that these arguments show; repo-check
       # wants a row for each in AGENTS.md "Deviations" (T4).
@@ -98,6 +100,9 @@ in
         lib.optional (markdownlint == null) (deviation "R-md-05" "markdownlint = null")
         ++ lib.optionals (markdownlint != null) (
           lib.optional ((markdownlint.overrides or { }) != { }) (deviation "R-md-05" "markdownlint.overrides")
+          ++ lib.optional (lib.any (s: (s.overrides or { }) != { }) (lib.attrValues dirSettings)) (
+            deviation "R-md-05" "markdownlint.directories overrides"
+          )
           ++ lib.optional ((markdownlint.profile or "forge") != "forge") (
             deviation "R-md-06" "markdownlint.profile"
           )
