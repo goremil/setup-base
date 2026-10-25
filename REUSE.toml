@@ -13,6 +13,7 @@ SPDX-License-Identifier = "CC-BY-SA-4.0"
 [[annotations]]
 path = [
   "flake.nix",
+  "copier.yml",
   "flake.lock",
   "REUSE.toml",
   ".editorconfig",
@@ -22,3 +23,12 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 setup-base contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+# The template: its files are copied into other repositories, so 0BSD, which
+# asks nothing of a copy. The licence texts it ships are included from
+# LICENSES/ at copy time, not stored here.
+[[annotations]]
+path = ["template/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 setup-base contributors"
+SPDX-License-Identifier = "0BSD"

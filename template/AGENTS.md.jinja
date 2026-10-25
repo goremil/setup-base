@@ -1,0 +1,36 @@
+# AGENTS.md
+
+Instructions for any agent, human or AI, working in this repository.
+
+## What this repository is
+
+{{ description }} See [README.md](README.md).
+
+## Rules
+
+- The rule core of `setup-base` applies; a departure from it is recorded under
+  "Deviations" below.
+{%- if visibility == 'public' %}
+- This repository is public. Nothing personal goes in: no names of hosts,
+  people or private repositories, no paths into a user's home directory.
+{%- endif %}
+- `nix flake check` passes before a commit.
+
+## Layout
+
+| Path | Content |
+| --- | --- |
+| `flake.nix` | Outputs: dev shell, `formatter`, `checks` |
+{%- if visibility == 'public' %}
+| `REUSE.toml`, `LICENSES/` | Licence of each path |
+{%- endif %}
+| `{{ '.forgejo' if forge == 'codeberg' else '.github' }}/workflows/` | CI: `nix flake check` on every push |
+| `.copier-answers.yml` | Template answers for `copier update`; not edited |
+
+## Deviations
+
+Departures from the `setup-base` rule core, one row each. A deviation not
+listed here is a mistake, not a decision.
+
+| Rule | What differs | Reason | Since | Decision |
+| --- | --- | --- | --- | --- |

@@ -1,0 +1,60 @@
+# Copier template for new repositories: the seeded skeleton (README,
+# AGENTS.md with its deviation register, flake, CI, licensing). The files
+# live in template/; this file holds the questions.
+#   copier copy  <setup-base> <new-repo>   once
+#   copier update                          later, from inside the repository
+
+_subdirectory: template
+_min_copier_version: "9.0.0"
+
+project_name:
+  type: str
+  help: Repository name, kebab-case
+  default: "{{ _copier_conf.dst_path | basename }}"
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
+    Use lowercase letters, digits and single hyphens.
+    {% endif %}
+
+description:
+  type: str
+  help: One line saying what the repository is
+  validator: "{% if not description %}Required.{% endif %}"
+
+visibility:
+  type: str
+  help: Public repositories get REUSE licensing and its check
+  choices:
+    - private
+    - public
+  default: private
+
+network_service:
+  type: bool
+  help: Can the software run as a network service? Then the code is AGPL-3.0-only instead of GPL-3.0-only
+  default: false
+  when: "{{ visibility == 'public' }}"
+
+forge:
+  type: str
+  help: Where the repository is hosted; decides the CI workflow
+  choices:
+    - codeberg
+    - github
+  default: codeberg
+
+forge_owner:
+  type: str
+  help: The user or organization owning the repository on the forge
+  when: "{{ visibility == 'public' }}"
+  validator: "{% if not forge_owner %}Required.{% endif %}"
+
+code_licence:
+  type: str
+  default: "{{ 'AGPL-3.0-only' if network_service else 'GPL-3.0-only' }}"
+  when: false
+
+_message_after_copy: >-
+  {% if network_service %}The AGPL text is not shipped with the template:
+  run `nix develop -c reuse download --all` before the first commit.
+  {% endif %}Then `git init`, `git add -A` and `nix flake check`.

@@ -1,0 +1,23 @@
+# {{ project_name }}
+
+{{ description }}
+
+Status: just created from the `setup-base` template.
+
+See [AGENTS.md](AGENTS.md) for how to work in this repository.
+
+## Development
+
+```sh
+nix develop          # dev shell
+nix flake check      # what CI runs
+nix fmt -- <files>   # format Nix files
+```
+{%- if visibility == 'public' %}
+
+## Licence
+
+Code, build definitions and configuration are under {{ code_licence }},
+documentation under CC-BY-SA-4.0. `REUSE.toml` maps each path to its licence,
+and `reuse lint` checks it.
+{%- endif %}
