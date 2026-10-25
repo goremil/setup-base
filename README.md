@@ -29,6 +29,7 @@ nix fmt              # format Nix files
 
 ## Licence
 
-Code and build definitions are under MIT, documentation and rules under
-CC-BY-4.0; `REUSE.toml` maps each path to its licence, and `reuse lint` checks
-it.
+Code and build definitions are under GPL-3.0-only, documentation and rules
+under CC-BY-SA-4.0; the template (`template/`), whose files are copied into
+other repositories, will be under 0BSD, so a copy carries no conditions.
+`REUSE.toml` maps each path to its licence, and `reuse lint` checks it.

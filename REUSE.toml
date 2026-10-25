@@ -2,14 +2,14 @@ version = 1
 SPDX-PackageName = "setup-base"
 SPDX-PackageDownloadLocation = "https://github.com/goremil/setup-base"
 
-# Documentation and rules: CC-BY-4.0.
+# Documentation and rules: CC-BY-SA-4.0.
 [[annotations]]
 path = ["**.md"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 setup-base contributors"
-SPDX-License-Identifier = "CC-BY-4.0"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
 
-# Code, build definitions and configuration: MIT.
+# Code, build definitions and configuration: GPL-3.0-only.
 [[annotations]]
 path = [
   "flake.nix",
@@ -21,4 +21,4 @@ path = [
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 setup-base contributors"
-SPDX-License-Identifier = "MIT"
+SPDX-License-Identifier = "GPL-3.0-only"
