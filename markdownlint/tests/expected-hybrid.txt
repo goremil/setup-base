@@ -1,0 +1,8 @@
+builtins.md:7:7 error MD033/no-inline-html Inline HTML [Element: kbd]
+builtins.md:9:11 error MD044/proper-names Proper names should have the correct capitalization [Expected: GitHub; Actual: github]
+builtins.md:9:22 error MD044/proper-names Proper names should have the correct capitalization [Expected: NixOS; Actual: nixos]
+builtins.md:19:17 error MD033/no-inline-html Inline HTML [Element: picture]
+noise.md:16:10 error no-emoji No emoji [Emoji: 🚀]
+noise.md:20:13 error no-emoji No emoji [Emoji: :white_check_mark:]
+noise.md:32 warning bold-density Too many bold spans in one paragraph or list item [4 bold spans, at most 3]
+noise.md:34:5 error no-wikilinks No wiki-links ([[name]]); use [text](relative/path.md)

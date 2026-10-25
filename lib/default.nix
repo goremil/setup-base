@@ -7,7 +7,33 @@
 # hooks enabled (R-check-06), `formatter` and `checks`. Tools come from
 # setup-base's nixpkgs, pinned by the descendant's flake.lock through `base`.
 { nixpkgs, base }:
+let
+  inherit (nixpkgs) lib;
+in
 {
+  markdownlint = rec {
+    profiles = import ../markdownlint/profiles.nix;
+    customRules = ../markdownlint/noise-rules.mjs;
+    # A folder with `.markdownlint-cli2.jsonc` for a profile, with `overrides`
+    # merged in key by key and `ignores` (globs, e.g. fixtures that break rules
+    # on purpose). customRules is an absolute store path, so the file works
+    # through a symlink from anywhere.
+    config =
+      pkgs:
+      {
+        profile ? "forge",
+        overrides ? { },
+        ignores ? [ ],
+      }:
+      pkgs.writeTextDir ".markdownlint-cli2.jsonc" (
+        builtins.toJSON {
+          config = lib.recursiveUpdate profiles.${profile} overrides;
+          customRules = [ "${customRules}" ];
+          inherit ignores;
+        }
+      );
+  };
+
   mkRepo =
     {
       self,
@@ -20,10 +46,27 @@
       # trailing-whitespace and final-newline.
       exclude ? { },
       hugeFileKiB ? 1024,
+      # { profile; overrides; ignores; } for markdownlint, or null for none. The dev
+      # shell links .markdownlint-cli2.jsonc (gitignored) to the generated
+      # file; a tracked file of that name is left alone. Overrides are
+      # deviations and go into the repository's AGENTS.md.
+      markdownlint ? { },
     }:
     let
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       hasReuse = builtins.pathExists (self + "/REUSE.toml");
+      lintLink =
+        pkgs:
+        lib.optionalString (markdownlint != null) ''
+          link="$top/.markdownlint-cli2.jsonc"
+          if [ -e "$link" ] && [ ! -L "$link" ]; then
+            : # a tracked config of the repository's own
+          elif git -C "$top" check-ignore -q "$link"; then
+            ln -sfn ${base.lib.markdownlint.config pkgs markdownlint}/.markdownlint-cli2.jsonc "$link"
+          else
+            echo "dev shell: add /.markdownlint-cli2.jsonc to .gitignore (copier update) to get the lint profile" >&2
+          fi
+        '';
       config =
         pkgs:
         pkgs.writeText "repo-check.json" (
@@ -50,10 +93,17 @@
           # REPO_CHECK_DEVSHELL tells the hooks they already run in this shell.
           # Entering it points git at the tracked hooks, so a clone needs no
           # manual step (R-check-06).
+          # Only in the repository this shell is built from: its flake.nix is
+          # the one in the store (a shell entered from elsewhere changes
+          # nothing there).
           shellHook = ''
             export REPO_CHECK_DEVSHELL=1
-            if top=$(git rev-parse --show-toplevel 2>/dev/null) && [ -d "$top/.githooks" ]; then
-              git config core.hooksPath .githooks
+            if top=$(git rev-parse --show-toplevel 2>/dev/null) &&
+              cmp -s "$top/flake.nix" ${self}/flake.nix; then
+              if [ -d "$top/.githooks" ]; then
+                git config core.hooksPath .githooks
+              fi
+              ${lintLink pkgs}
             fi
           '';
         };

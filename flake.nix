@@ -15,6 +15,8 @@
       repo = lib.mkRepo {
         inherit self;
         extraPackages = pkgs: [ pkgs.copier ];
+        # The lint fixtures break rules on purpose.
+        markdownlint.ignores = [ "markdownlint/tests/**" ];
         exclude = {
           keys = [ "^tools/repo-check\\.py$" ];
           # The licence includes have no final newline on purpose: the included
@@ -42,6 +44,9 @@
       checks = forAllSystems (
         pkgs:
         repo.checks.${pkgs.stdenv.hostPlatform.system}
+        // {
+          markdownlint-profiles = import ./markdownlint/check.nix { inherit pkgs lib; };
+        }
         // import ./tests {
           inherit pkgs lib;
           inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-check commit-msg-check;

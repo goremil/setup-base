@@ -14,8 +14,8 @@ SPDX-License-Identifier = "CC-BY-SA-4.0"
 path = [
   "flake.nix",
   "copier.yml",
-  ".markdownlint-cli2.jsonc",
   "lib/**",
+  "markdownlint/**",
   "tools/**",
   "tests/**",
   "flake.lock",

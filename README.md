@@ -11,7 +11,7 @@ Status: being built. The parts below arrive one at a time.
 | Part | Kind | How a repository gets it |
 | --- | --- | --- |
 | Rule core (`rules/`) | managed | read in place, or pinned as a flake input |
-| Checks, hooks, lint configurations, `formatter` | managed | flake outputs, pinned in the descendant's `flake.lock` |
+| Checks, hooks, lint profiles (`markdownlint/`), `formatter` | managed | flake outputs, pinned in the descendant's `flake.lock` |
 | Repository skeleton (`template/`) | seeded | [Copier](https://copier.readthedocs.io): `copier copy` once, `copier update` later |
 
 Managed parts are the same in every repository and are not edited there; a

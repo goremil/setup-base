@@ -1,0 +1,5 @@
+builtins.md:1 error MD041/first-line-heading/first-line-h1 First line in a file should be a top-level heading
+builtins.md:9:11 error MD044/proper-names Proper names should have the correct capitalization [Expected: GitHub; Actual: github]
+builtins.md:9:22 error MD044/proper-names Proper names should have the correct capitalization [Expected: NixOS; Actual: nixos]
+builtins.md:19:17 error MD033/no-inline-html Inline HTML [Element: picture]
+noise.md:34:5 error no-wikilinks No wiki-links ([[name]]); use [text](relative/path.md)
