@@ -8,11 +8,9 @@ Instructions for any agent, human or AI, working in this repository.
 
 ## Rules
 
-- The rule core of `setup-base` applies; a departure from it is recorded under
-  "Deviations" below.
+- The rule core of `setup-base` applies; a departure from it is recorded under "Deviations" below.
 {%- if visibility == 'public' %}
-- This repository is public. Nothing personal goes in: no names of hosts,
-  people or private repositories, no paths into a user's home directory.
+- This repository is public. Nothing personal goes in: no names of hosts, people or private repositories, no paths into a user's home directory.
 {%- endif %}
 - `repo-check` passes before a commit; the pre-commit hook runs it.
 
@@ -31,8 +29,7 @@ Instructions for any agent, human or AI, working in this repository.
 
 ## Deviations
 
-Departures from the `setup-base` rule core, one row each. A deviation not
-listed here is a mistake, not a decision.
+Departures from the `setup-base` rule core, one row each (R-rules-03). A deviation not listed here is a mistake, not a decision; `repo-check` checks each row and asks for the departures it can see.
 
 | Rule | What differs | Reason | Since | Decision |
 | --- | --- | --- | --- | --- |

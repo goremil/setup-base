@@ -17,4 +17,5 @@ balanced Markdown code fences
 no huge files
 no trailing whitespace (except .md)
 final newline
+deviations recorded
 extra check

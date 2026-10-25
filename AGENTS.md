@@ -4,20 +4,14 @@ Instructions for any agent, human or AI, working in this repository.
 
 ## What this repository is
 
-The base layer of the configuration repositories (`setup-base`, `setup-home`,
-`setup-para`, `setup-agents`): the agent-agnostic rule core, the managed
-tooling and the Copier template for new repositories. See
-[README.md](README.md).
+The base layer of the configuration repositories (`setup-base`, `setup-home`, `setup-para`, `setup-agents`): the agent-agnostic rule core, the managed tooling and the Copier template for new repositories. See [README.md](README.md).
 
 ## Rules
 
-- This repository is public. Nothing personal goes in: no names of hosts,
-  people or private repositories, no paths into a user's home directory.
+- This repository is public. Nothing personal goes in: no names of hosts, people or private repositories, no paths into a user's home directory.
 - Files are written in English with `-ize` spelling.
-- A change to a managed part reaches every descendant on its next
-  `nix flake update base`, so it is reviewed as a change to all of them.
-- `nix develop --command repo-check` passes before a commit; a check that is
-  added or changed gets a fault in `tests/` (R-check-12).
+- A change to a managed part reaches every descendant on its next `nix flake update base`, so it is reviewed as a change to all of them.
+- `nix develop --command repo-check` passes before a commit; a check that is added or changed gets a fault in `tests/` (R-check-12).
 
 ## Layout
 
@@ -33,3 +27,10 @@ tooling and the Copier template for new repositories. See
 | `flake.nix` | Outputs: `lib`, `packages` (the check scripts), dev shell, `formatter`, `checks`; this repository uses its own `lib.mkRepo` |
 | `REUSE.toml`, `LICENSES/` | Licence of each path |
 | `.forgejo/workflows/` | CI: `repo-check -v` in the dev shell on every push |
+
+## Deviations
+
+Departures from the rule core, one row each (R-rules-03). A deviation not listed here is a mistake, not a decision; `repo-check` checks each row and asks for the departures it can see.
+
+| Rule | What differs | Reason | Since | Decision |
+| --- | --- | --- | --- | --- |

@@ -35,6 +35,8 @@ DEFAULT_CONFIG = {
     },
     "hugeFileKiB": 1024,
     "extraChecks": [],
+    "rulesDir": None,
+    "requiredDeviations": [],
 }
 
 
@@ -46,7 +48,7 @@ def load_config() -> dict:
             given = json.load(f)
         for key, patterns in given.get("exclude", {}).items():
             config["exclude"][key] = config["exclude"].get(key, []) + patterns
-        for key in ("hugeFileKiB", "extraChecks"):
+        for key in ("hugeFileKiB", "extraChecks", "rulesDir", "requiredDeviations"):
             if key in given:
                 config[key] = given[key]
     return config
@@ -295,6 +297,67 @@ def check_final_newline(files: list[str], config: dict) -> tuple[bool, str]:
     return not msgs, "\n".join(msgs)
 
 
+# --- deviations (T4, R-rules-03): the "Deviations" table in AGENTS.md has a row
+#     per departure from the setup-base rule core, with a rule ID that exists
+#     there, what differs, the reason, a date and a decision. A departure that
+#     lib.mkRepo can see (`requiredDeviations`) or a tracked lint config of the
+#     repository's own (R-md-05) must have its row. With -v the rows are listed. ---
+RULE_ID = re.compile(r"\*\*(R-[a-z]+-\d+)\*\*")
+ROW_ID = re.compile(r"R-[a-z]+-\d+")
+DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def deviation_rows(path: str) -> list[list[str]]:
+    rows, inside = [], False
+    for line in read_lines(path):
+        if line.startswith("## "):
+            inside = line.strip() == "## Deviations"
+            continue
+        if inside and line.startswith("|"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if cells[0] == "Rule" or set(cells[0]) <= {"-", " ", ":"}:
+                continue
+            rows.append(cells)
+    return rows
+
+
+def check_deviations(config: dict) -> tuple[bool, str]:
+    known = set()
+    for rules in Path(config["rulesDir"]).glob("*.md"):
+        known.update(RULE_ID.findall(rules.read_text(encoding="utf-8")))
+    required = list(config["requiredDeviations"])
+    lint = Path(".markdownlint-cli2.jsonc")
+    if lint.is_file() and not lint.is_symlink():
+        required.append(
+            {"rule": "R-md-05", "why": "a tracked .markdownlint-cli2.jsonc"}
+        )
+    rows = deviation_rows("AGENTS.md") if os.path.isfile("AGENTS.md") else []
+    msgs, recorded = [], set()
+    for cells in rows:
+        ids = ROW_ID.findall(cells[0])
+        problems = []
+        if len(cells) != 5:
+            problems.append(f"{len(cells)} columns, not 5")
+        elif not all(cells):
+            problems.append("an empty column")
+        elif not DATE.match(cells[3]):
+            problems.append(f"date {cells[3]!r} is not YYYY-MM-DD")
+        if not ids:
+            problems.append("no rule ID")
+        problems += [f"{i} is not a setup-base rule" for i in ids if i not in known]
+        recorded.update(ids)
+        line = " | ".join(cells)
+        msgs.append(f"    {line}" + (f"  <- {'; '.join(problems)}" if problems else ""))
+    bad = [m for m in msgs if "  <- " in m]
+    for need in required:
+        if need["rule"] not in recorded:
+            bad.append(f"    unrecorded: {need['rule']} ({need['why']})")
+    listing = [f"    {len(rows)} deviation(s) recorded in AGENTS.md"] + msgs
+    if not bad:
+        return True, "\n".join(listing) if VERBOSE else ""
+    return False, "\n".join(bad)
+
+
 def checks_for(config: dict) -> list[tuple[str, object]]:
     files = repo_files()
     text = text_files(files)
@@ -385,6 +448,13 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
             lambda: check_no_trailing_whitespace(text, config),
         ),
         ("final newline", lambda: check_final_newline(text, config)),
+        (
+            "deviations recorded",
+            (lambda: check_deviations(config))
+            if config["rulesDir"]
+            and (os.path.isfile("AGENTS.md") or config["requiredDeviations"])
+            else "no AGENTS.md",
+        ),
     ]
     for extra in config["extraChecks"]:
         checks.append((extra["name"], lambda cmd=extra["command"]: run_tool(*cmd)))

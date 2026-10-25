@@ -1,4 +1,4 @@
 .direnv/
 result
 result-*
-/.markdownlint-cli2.jsonc
+.markdownlint-cli2.jsonc

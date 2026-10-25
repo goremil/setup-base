@@ -46,7 +46,8 @@ in
       # trailing-whitespace and final-newline.
       exclude ? { },
       hugeFileKiB ? 1024,
-      # { profile; overrides; ignores; } for markdownlint, or null for none. The dev
+      # { profile; overrides; ignores; directories; } for markdownlint, or
+      # null for none. The dev
       # shell links .markdownlint-cli2.jsonc (gitignored) to the generated
       # file; a tracked file of that name is left alone. Overrides are
       # deviations and go into the repository's AGENTS.md.
@@ -55,23 +56,65 @@ in
     let
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       hasReuse = builtins.pathExists (self + "/REUSE.toml");
-      lintLink =
-        pkgs:
-        lib.optionalString (markdownlint != null) ''
-          link="$top/.markdownlint-cli2.jsonc"
-          if [ -e "$link" ] && [ ! -L "$link" ]; then
-            : # a tracked config of the repository's own
-          elif git -C "$top" check-ignore -q "$link"; then
-            ln -sfn ${base.lib.markdownlint.config pkgs markdownlint}/.markdownlint-cli2.jsonc "$link"
-          else
-            echo "dev shell: add /.markdownlint-cli2.jsonc to .gitignore (copier update) to get the lint profile" >&2
+      # The root gets `profile` with `overrides` and `ignores`; each folder in
+      # `directories` that exists gets its own profile (R-md-06: agent in
+      # .agents/). markdownlint-cli2 lets a folder's config replace its
+      # parent's.
+      lint = {
+        directories = {
+          ".agents" = "agent";
+        };
+      }
+      // (if markdownlint == null then { } else markdownlint);
+      lintFor =
+        pkgs: dir: settings:
+        let
+          file = "${base.lib.markdownlint.config pkgs settings}/.markdownlint-cli2.jsonc";
+        in
+        ''
+          if [ -d "$top/${dir}" ]; then
+            link="$top/${dir}/.markdownlint-cli2.jsonc"
+            if [ -e "$link" ] && [ ! -L "$link" ]; then
+              : # a tracked config of the repository's own
+            elif git -C "$top" check-ignore -q "$link"; then
+              ln -sfn ${file} "$link"
+            else
+              echo "dev shell: add .markdownlint-cli2.jsonc to .gitignore (copier update) to get the lint profile in ${dir}" >&2
+            fi
           fi
         '';
+      lintLink =
+        pkgs:
+        lib.optionalString (markdownlint != null) (
+          lintFor pkgs "." (builtins.removeAttrs lint [ "directories" ])
+          + lib.concatStrings (
+            lib.mapAttrsToList (dir: profile: lintFor pkgs dir { inherit profile; }) lint.directories
+          )
+        );
+      # Departures from the rule core that these arguments show; repo-check
+      # wants a row for each in AGENTS.md "Deviations" (T4).
+      deviation = rule: why: { inherit rule why; };
+      requiredDeviations =
+        lib.optional (markdownlint == null) (deviation "R-md-05" "markdownlint = null")
+        ++ lib.optionals (markdownlint != null) (
+          lib.optional ((markdownlint.overrides or { }) != { }) (deviation "R-md-05" "markdownlint.overrides")
+          ++ lib.optional ((markdownlint.profile or "forge") != "forge") (
+            deviation "R-md-06" "markdownlint.profile"
+          )
+          ++ lib.optional (markdownlint ? directories) (deviation "R-md-06" "markdownlint.directories")
+        )
+        ++ lib.optional ((exclude.spelling or [ ]) != [ ]) (deviation "R-lang-04" "exclude.spelling");
       config =
         pkgs:
         pkgs.writeText "repo-check.json" (
           builtins.toJSON {
-            inherit exclude hugeFileKiB extraChecks;
+            inherit
+              exclude
+              hugeFileKiB
+              extraChecks
+              requiredDeviations
+              ;
+            rulesDir = "${base}/rules";
           }
         );
     in

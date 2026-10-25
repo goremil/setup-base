@@ -32,13 +32,32 @@ let
   '';
 in
 {
-  repo-check-clean = pkgs.runCommand "repo-check-clean" { nativeBuildInputs = tools; } ''
-    ${setup}
-    git add -A
-    repo-check | tee "$TMPDIR/out"
-    grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
-    touch $out
-  '';
+  # The deviation check reads the rule IDs from ../rules; both tests require a
+  # row for R-lang-04, as lib.mkRepo does for `exclude.spelling`.
+  repo-check-clean =
+    pkgs.runCommand "repo-check-clean"
+      {
+        nativeBuildInputs = tools;
+        config = builtins.toJSON {
+          rulesDir = "${../rules}";
+          requiredDeviations = [
+            {
+              rule = "R-lang-04";
+              why = "exclude.spelling";
+            }
+          ];
+        };
+        passAsFile = [ "config" ];
+      }
+      ''
+        ${setup}
+        printf '# Agents\n\n## Deviations\n\n| Rule | What differs | Reason | Since | Decision |\n| --- | --- | --- | --- | --- |\n| R-lang-04 | A quoted British text | Verbatim quote | 2026-10-25 | A note |\n' > AGENTS.md
+        git add -A
+        REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
+        grep -q '1 deviation(s) recorded' "$TMPDIR/out"
+        grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
+        touch $out
+      '';
 
   repo-check-faults =
     pkgs.runCommand "repo-check-faults"
@@ -46,6 +65,13 @@ in
         nativeBuildInputs = tools;
         config = builtins.toJSON {
           hugeFileKiB = 1;
+          rulesDir = "${../rules}";
+          requiredDeviations = [
+            {
+              rule = "R-lang-04";
+              why = "exclude.spelling";
+            }
+          ];
           extraChecks = [
             {
               name = "extra check";
@@ -78,6 +104,8 @@ in
         head -c 2048 /dev/zero | tr '\0' 'a' > big.txt; echo >> big.txt  # huge files
         printf 'line   \n' > spaces.txt                              # trailing whitespace
         printf 'no newline' > nonl.txt                               # final newline
+        # deviations: an unknown rule, a bad date, and R-lang-04 unrecorded
+        printf '# Agents\n\n## Deviations\n\n| Rule | What differs | Reason | Since | Decision |\n| --- | --- | --- | --- | --- |\n| R-made-99 | x | y | 2026-10-25 | z |\n| R-md-06 | x | y | soon | z |\n' > AGENTS.md
         git add -A
         status=0
         REPO_CHECK_CONFIG="$configPath" repo-check > "$TMPDIR/out" || status=$?
@@ -87,6 +115,49 @@ in
         diff -u ${./faults-expected.txt} "$TMPDIR/failed"
         touch $out
       '';
+
+  # lib.mkRepo turns its arguments into the deviations repo-check requires.
+  mkrepo-deviations =
+    let
+      required =
+        args:
+        (builtins.fromJSON (
+          builtins.unsafeDiscardStringContext (
+            builtins.readFile
+              (lib.mkRepo ({ self = ../.; } // args))
+              .devShells.${pkgs.stdenv.hostPlatform.system}.default.REPO_CHECK_CONFIG
+          )
+        )).requiredDeviations;
+      rules = args: map (d: d.rule) (required args);
+      expect =
+        name: got: want:
+        if got == want then
+          ""
+        else
+          throw "mkrepo-deviations ${name}: got ${builtins.toJSON got}, want ${builtins.toJSON want}";
+    in
+    pkgs.runCommand "mkrepo-deviations" { } (
+      expect "defaults" (rules { }) [ ]
+      + expect "ignores only" (rules { markdownlint.ignores = [ "x/**" ]; }) [ ]
+      + expect "null" (rules { markdownlint = null; }) [ "R-md-05" ]
+      +
+        expect "all"
+          (rules {
+            markdownlint = {
+              profile = "agent";
+              overrides.MD013 = true;
+              directories = { };
+            };
+            exclude.spelling = [ "x" ];
+          })
+          [
+            "R-md-05"
+            "R-md-06"
+            "R-md-06"
+            "R-lang-04"
+          ]
+      + "touch $out"
+    );
 
   commit-msg-check = pkgs.runCommand "commit-msg-check" { nativeBuildInputs = tools; } ''
     printf 'feat(template): ask for the forge\n' > good
