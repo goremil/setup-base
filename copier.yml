@@ -57,4 +57,5 @@ code_licence:
 _message_after_copy: >-
   {% if network_service %}The AGPL text is not shipped with the template:
   run `nix develop -c reuse download --all` before the first commit.
-  {% endif %}Then `git init`, `git add -A` and `nix flake check`.
+  {% endif %}Then `git init`, `git add -A`, and `nix develop` (enables the hooks)
+  with `repo-check`.

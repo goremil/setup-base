@@ -24,7 +24,8 @@ deviation in its own `AGENTS.md`.
 ```sh
 nix shell nixpkgs#copier -c copier copy \
   https://github.com/goremil/setup-base.git <new-repo>
-cd <new-repo> && git init && git add -A && nix flake check
+cd <new-repo> && git init && git add -A
+nix develop --command repo-check   # entering the shell enables the hooks
 ```
 
 Give the forge URL, not a local clone: `.copier-answers.yml` records the
