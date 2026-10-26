@@ -2,10 +2,11 @@
 
 Explanation for the requirements in [methodology.md](../rules/methodology.md), one section per requirement ID or group. Read on demand.
 
-## R-evidence-01 to R-evidence-05
+## R-evidence-01 to R-evidence-07
 
 - R-evidence-01: the order (run, read the source, read the docs) goes from the most to the least direct evidence of what the tool actually does.
 - R-evidence-05: the ranking measures how far a source can be trusted as evidence for a claim. It is a separate question from which rule to follow ([repo-policy.md](../rules/repo-policy.md) R-rules-02, the selection categories A–D).
+- R-evidence-07 (user, 2026-10-26): R-evidence-01 covers single facts; this rule covers what the user decides on. A flagged guess inside a plan still shifts the checking to the user, who decides on the plan as a whole; asking instead makes the gap visible where the decision is taken. R-evidence-06 is personal and lives in the user's own repository.
 
 ## R-determinism-01 to R-determinism-04
 

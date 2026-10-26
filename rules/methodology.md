@@ -11,6 +11,7 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 - **R-evidence-03**: The agent MUST flag an uncertain answer and give its source links. Check: 0 + 1. Since: 2026-09.
 - **R-evidence-04**: When uncertain, the agent SHOULD reframe the problem and retry, and if still uncertain, search the web or ask the user. Check: 0. Since: 2026-09.
 - **R-evidence-05**: Evidence for a claim SHOULD come from the highest available tier of the source ranking below; a tier 6 or 7 source MUST be flagged as uncertain. Check: 0 + 1. Since: 2026-10-18.
+- **R-evidence-07**: The agent MUST NOT present a plan, proposal or recommendation that rests on an unchecked claim: it MUST check each claim it relies on by R-evidence-01 before presenting it, and a claim it cannot check MUST reach the user as a question, not as a statement marked "unchecked" or "from general knowledge". Check: 0. Since: 2026-10-26.
 
 Source ranking, highest first:
 
