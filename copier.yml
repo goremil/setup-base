@@ -18,8 +18,12 @@ project_name:
 
 description:
   type: str
-  help: One line saying what the repository is
-  validator: "{% if not description %}Required.{% endif %}"
+  help: One sentence saying what the repository is, ending with a full stop
+  # AGENTS.md puts "See README.md." right after it, so a missing full stop
+  # runs two sentences together.
+  validator: >-
+    {% if not description %}Required.{% elif not description.rstrip().endswith(".") %}End it
+    with a full stop: AGENTS.md continues with another sentence.{% endif %}
 
 visibility:
   type: str
