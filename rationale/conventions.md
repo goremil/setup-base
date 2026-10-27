@@ -28,8 +28,16 @@ Explanation for the requirements in [conventions.md](../rules/conventions.md), o
 - R-link-04, checked 2026-10-24: no anchor form resolves on both sides. GitHub and VSCodium use the slug; Obsidian expects the heading text URL-encoded (`#My%20section`) and does not resolve slugs (open feature request since 2022-01-11).
 - R-link-05: a public repository is read by people who have none of the author's other files.
 - R-link-08, tested 2026-10-25 with markdownlint-cli2 0.23.3 and cspell: MD044 checks the visible link text, never the URL, and cannot exempt links, so `[nixos.org](…)` or `[vscodium.nix](…)` fail; cspell flags unknown words in plain link text. Both skip code spans. Rendering, checked the same day: Obsidian and the built-in VSCodium preview show a code-text link as a link; Markdown Preview Enhanced styles it as plain code unless a style rule (`a code`) gives it the link colour. GitHub and Codeberg were not checked.
-- R-link-10: GitHub opens folder links; Obsidian and the VSCodium preview were not checked.
+- R-link-10: GitHub opens folder links. Checked 2026-10-27 for a folder outside the repository: the built-in VSCodium preview reveals it in the sidebar, Markdown Preview Enhanced shows a link that does nothing, Obsidian fails with `EACCES`.
 - R-link-12, tool settings: lychee (offline by default, online on demand); VSCodium `markdown.validate.enabled` and `markdown.updateLinksOnFileMove.enabled`; Obsidian with `Use [[Wikilinks]]` off, "New link format" relative path, "Automatically update internal links" on; MD051 for anchors.
+
+## R-link-15
+
+- CommonMark gives a link one destination, so no single link falls back from a local file to its remote copy. Two links, the remote one first, keep the name clickable everywhere and add the local one where it works.
+- Checked 2026-10-27, a link out of a vault to a file in another checkout: the VSCodium editor follows every form; its built-in preview and Markdown Preview Enhanced follow a relative path but not `file://`; Obsidian (1.14.5) fails on a relative path with `EACCES`, opens `file://` in the system's default application, and opens `https://` in the browser. The remote link is the only form that works in all of them.
+- `file://` and absolute paths tie a note to one user name and one machine (R-link-03).
+- CI has no home directory, so a local path alone cannot be checked there; the remote half of a pair gives it something to check. A place with no remote is marked as local-only by its form, so skipping it in CI is the author's statement, not an accident.
+- The word `local` as link text reads without a legend.
 
 ## R-index-01 to R-index-06
 
