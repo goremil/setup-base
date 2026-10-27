@@ -34,7 +34,8 @@ let
 in
 {
   # The deviation check reads the rule IDs from ../rules; both tests require a
-  # row for R-lang-04, as lib.mkRepo does for `exclude.spelling`.
+  # row for R-lang-04, as lib.mkRepo does for `exclude.spelling`. The clean
+  # test also has a vendored folder full of faults, which every check skips.
   repo-check-clean =
     pkgs.runCommand "repo-check-clean"
       {
@@ -46,16 +47,26 @@ in
               rule = "R-lang-04";
               why = "exclude.spelling";
             }
+            {
+              rule = "R-check-07";
+              why = "vendored";
+            }
           ];
+          vendored = [ "vendor/" ];
         };
         passAsFile = [ "config" ];
       }
       ''
         ${setup}
-        printf '# Agents\n\n## Deviations\n\n| Rule | What differs | Reason | Since | Decision |\n| --- | --- | --- | --- | --- |\n| R-lang-04 | A quoted British text | Verbatim quote | 2026-10-25 | A note |\n' > AGENTS.md
+        printf '# Agents\n\n## Deviations\n\n| Rule | What differs | Reason | Since | Decision |\n| --- | --- | --- | --- | --- |\n| R-lang-04 | A quoted British text | Verbatim quote | 2026-10-25 | A note |\n| R-check-07 | vendor/ is not checked | Verbatim copies | 2026-10-27 | A note |\n' > AGENTS.md
+        mkdir -p vendor/deep
+        printf '{ unused }: let a = 1; in { a = a; }\n' > vendor/deep/bad.nix
+        printf '#Heading\n\n[gone](missing.md)\n\nThe color.\n' > vendor/lint.md
+        printf '#!/usr/bin/env bash\necho $1\n' > vendor/unsafe.sh
+        printf 'no newline' > vendor/nonl.txt
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
-        grep -q '1 deviation(s) recorded' "$TMPDIR/out"
+        grep -q '2 deviation(s) recorded' "$TMPDIR/out"
         grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
         touch $out
       '';
@@ -67,6 +78,7 @@ in
         config = builtins.toJSON {
           hugeFileKiB = 1;
           rulesDir = "${../rules}";
+          vendored = [ "vendor/" ];
           requiredDeviations = [
             {
               rule = "R-lang-04";
@@ -98,7 +110,8 @@ in
         printf '# Links\n\n[gone](missing.md)\n' > links.md          # .md links
         printf '# Spelling\n\nThe color.\n' > spelling.md            # -ize spelling
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
-        printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > new.txt  # gitleaks (staged)
+        # gitleaks (staged), which scans vendored folders too
+        mkdir vendor && printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > vendor/new.txt
         printf '%s HEAD\n' "$(printf '<%.0s' 1 2 3 4 5 6 7)" > conflict.txt  # conflict markers
         chmod -x .githooks/pre-commit                                # hooks executable
         printf '# Fence\n\n```sh\necho open\n' > fence.md            # code fences
@@ -141,6 +154,7 @@ in
       expect "defaults" (rules { }) [ ]
       + expect "ignores only" (rules { markdownlint.ignores = [ "x/**" ]; }) [ ]
       + expect "null" (rules { markdownlint = null; }) [ "R-md-05" ]
+      + expect "vendored" (rules { vendored = [ "v/" ]; }) [ "R-check-07" ]
       +
         expect "folder overrides"
           (rules {

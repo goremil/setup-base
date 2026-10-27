@@ -11,8 +11,9 @@ output.
 Which checks run follows the files the repository has: a tool check is skipped when
 there is nothing for it (no YAML files, no cspell config). Per-repository settings
 come from the JSON file named by REPO_CHECK_CONFIG, which `lib.mkRepo` writes from its
-arguments: `exclude` (regexes per check), `hugeFileKiB` and `extraChecks` (name and
-command, run like the tool checks).
+arguments: `exclude` (regexes per check), `hugeFileKiB`, `extraChecks` (name and
+command, run like the tool checks) and `vendored` (folders kept verbatim, which every
+check but gitleaks skips).
 """
 
 import argparse
@@ -37,6 +38,7 @@ DEFAULT_CONFIG = {
     "extraChecks": [],
     "rulesDir": None,
     "requiredDeviations": [],
+    "vendored": [],
 }
 
 
@@ -48,7 +50,13 @@ def load_config() -> dict:
             given = json.load(f)
         for key, patterns in given.get("exclude", {}).items():
             config["exclude"][key] = config["exclude"].get(key, []) + patterns
-        for key in ("hugeFileKiB", "extraChecks", "rulesDir", "requiredDeviations"):
+        for key in (
+            "hugeFileKiB",
+            "extraChecks",
+            "rulesDir",
+            "requiredDeviations",
+            "vendored",
+        ):
             if key in given:
                 config[key] = given[key]
     return config
@@ -76,10 +84,16 @@ def read_lines(path: str) -> list[str]:
 
 # The files the checks look at (R-check-07): tracked plus new ones, never what
 # .gitignore excludes; deleted but still tracked files are dropped. Symlinks are left
-# to their targets.
-def repo_files() -> list[str]:
+# to their targets, vendored folders to their upstream (gitleaks still scans them).
+def repo_files(config: dict) -> list[str]:
     files = git("ls-files", "--cached", "--others", "--exclude-standard")
-    return [f for f in files if os.path.isfile(f) and not os.path.islink(f)]
+    return [
+        f
+        for f in files
+        if os.path.isfile(f)
+        and not os.path.islink(f)
+        and not f.startswith(tuple(config["vendored"]))
+    ]
 
 
 def text_files(files: list[str]) -> list[str]:
@@ -380,7 +394,7 @@ def check_deviations(config: dict) -> tuple[bool, str]:
 
 
 def checks_for(config: dict) -> list[tuple[str, object]]:
-    files = repo_files()
+    files = repo_files(config)
     text = text_files(files)
     nix = [f for f in text if f.endswith(".nix")]
     md = [f for f in text if f.endswith(".md")]
@@ -397,7 +411,16 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
         ("nixfmt --check", tool(["nixfmt", "--check"], nix, "no Nix files")),
         (
             "statix check",
-            (lambda: run_tool("statix", "check", ".")) if nix else "no Nix files",
+            (
+                lambda: run_tool(
+                    "statix",
+                    "check",
+                    ".",
+                    *(a for v in config["vendored"] for a in ("-i", f"{v}**")),
+                )
+            )
+            if nix
+            else "no Nix files",
         ),
         ("deadnix --fail", tool(["deadnix", "--fail"], nix, "no Nix files")),
         (

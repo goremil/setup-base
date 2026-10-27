@@ -53,6 +53,10 @@ in
       # tracked file of that name is left alone. Overrides are deviations and
       # go into the repository's AGENTS.md.
       markdownlint ? { },
+      # [ folder ]: folders kept verbatim, such as copies of other projects'
+      # files, relative to the root and ending in a slash. Every check skips
+      # them except gitleaks; a deviation of R-check-07.
+      vendored ? [ ],
     }:
     let
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
@@ -87,11 +91,15 @@ in
             fi
           fi
         '';
+      # The root's `ignores` take the vendored folders too, for editors that
+      # lint every open file.
+      rootLint = builtins.removeAttrs lint [ "directories" ] // {
+        ignores = (lint.ignores or [ ]) ++ map (v: "${v}**") vendored;
+      };
       lintLink =
         pkgs:
         lib.optionalString (markdownlint != null) (
-          lintFor pkgs "." (builtins.removeAttrs lint [ "directories" ])
-          + lib.concatStrings (lib.mapAttrsToList (lintFor pkgs) dirSettings)
+          lintFor pkgs "." rootLint + lib.concatStrings (lib.mapAttrsToList (lintFor pkgs) dirSettings)
         );
       # Departures from the rule core that these arguments show; repo-check
       # wants a row for each in AGENTS.md "Deviations" (T4).
@@ -108,7 +116,8 @@ in
           )
           ++ lib.optional (markdownlint ? directories) (deviation "R-md-06" "markdownlint.directories")
         )
-        ++ lib.optional ((exclude.spelling or [ ]) != [ ]) (deviation "R-lang-04" "exclude.spelling");
+        ++ lib.optional ((exclude.spelling or [ ]) != [ ]) (deviation "R-lang-04" "exclude.spelling")
+        ++ lib.optional (vendored != [ ]) (deviation "R-check-07" "vendored");
       config =
         pkgs:
         pkgs.writeText "repo-check.json" (
@@ -118,6 +127,7 @@ in
               hugeFileKiB
               extraChecks
               requiredDeviations
+              vendored
               ;
             rulesDir = "${base}/rules";
           }
@@ -161,7 +171,9 @@ in
         pkgs:
         {
           nixfmt = pkgs.runCommand "nixfmt-check" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-            find ${self} -name '*.nix' -exec nixfmt --check {} +
+            find ${self} -name '*.nix' ${
+              lib.concatMapStrings (v: "-not -path '${self}/${v}*' ") vendored
+            }-exec nixfmt --check {} +
             touch $out
           '';
         }
