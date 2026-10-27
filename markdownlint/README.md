@@ -1,14 +1,15 @@
 # Markdown lint profiles
 
-Three markdownlint profiles, one per Markdown medium, and five custom rules. A repository built on `setup-base` picks one in `lib.mkRepo`; its dev shell links `.markdownlint-cli2.jsonc` (gitignored) to the generated file, so `repo-check`, the editor and the CLI lint the same way, and a new version arrives with `nix flake update base`.
+Three markdownlint profiles, one per Markdown medium, a fourth that lints nothing, and five custom rules. A repository built on `setup-base` picks one in `lib.mkRepo`; its dev shell links `.markdownlint-cli2.jsonc` (gitignored) to the generated file, so `repo-check`, the editor and the CLI lint the same way, and a new version arrives with `nix flake update base`.
 
 ## Profiles
 
 - `agent`: Markdown read by agents as raw text. The base: no HTML, inline links only, no alerts, emoji or horizontal rules, at most one bold span per paragraph (warning).
 - `forge`: Markdown read by people on GitHub or Codeberg, the default. The base plus what both forges render: a few HTML elements (`details`, `summary`, `img`, `br`, `kbd`, `sub`, `sup`; not `picture` or `source`, which Codeberg strips), reference links, alerts, emoji and rules; the first line must be a heading.
 - `hybrid`: knowledge for agents and people, read in an editor. The base plus reference links, callouts and rules; at most three bold spans per paragraph (warning).
+- `off`: every rule the other profiles set, switched off by name, and `default: false`; for a folder that is not maintained, such as an archive. A folder's config is merged over a `--config` base key by key, so `default: false` alone would leave the base's explicitly set rules on.
 
-Every profile keeps: no hard wrap (MD013 off), compact tables (MD060), `_italic_` and `**bold**`, ATX headings, `-` bullets, fenced code, MD044 capitalization for a short list of names, and no wiki-links.
+Every profile but `off` keeps: no hard wrap (MD013 off), compact tables (MD060), `_italic_` and `**bold**`, ATX headings, `-` bullets, fenced code, MD044 capitalization for a short list of names, and no wiki-links.
 
 ## Custom rules
 

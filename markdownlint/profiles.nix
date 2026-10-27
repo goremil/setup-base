@@ -1,4 +1,4 @@
-# The three Markdown lint profiles (agent, forge, hybrid), as
+# The four Markdown lint profiles (agent, forge, hybrid, off), as
 # plain attrsets of markdownlint rule settings. `agent` is the base; `forge`
 # and `hybrid` are the base with their own overrides merged in, so every
 # profile is complete and flat (no `extends` inside the generated files).
@@ -62,7 +62,7 @@ let
     };
   };
 in
-{
+rec {
   inherit agent;
 
   # Read by people on GitHub or Codeberg.
@@ -99,4 +99,12 @@ in
         max = 3;
       };
     };
+
+  # Every rule off, for a folder that is not linted (an archive). A folder's
+  # config is merged over a --config base (mdlint, the editor) key by key, so
+  # "default": false alone would leave the base's explicitly set rules on;
+  # each key the other profiles set is switched off by name instead.
+  off = builtins.mapAttrs (_: _: false) (agent // forge // hybrid) // {
+    default = false;
+  };
 }
