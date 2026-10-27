@@ -25,8 +25,8 @@ let
     chmod +x .githooks/pre-commit
     printf '{ pkgs }: pkgs.hello\n' > default.nix
     printf '# Title\n\nSee [the notes](notes.md).\n\n```sh\necho hi\n```\n' > README.md
-    # Code is not prose: the spelling check skips fences and code spans.
-    printf '# Notes\n\nOrganize the colours with `color`.\n\n```css\na { color: red; }\n```\n' > notes.md
+    # Code is not prose: the spelling and link checks skip fences and code spans.
+    printf '# Notes\n\nOrganize the colours with `color`, linked as `[x](gone.md)`.\n\n```css\na { color: red; }\n```\n' > notes.md
     printf 'a: 1\n' > config.yaml
     printf '#!/usr/bin/env bash\nset -euo pipefail\necho "$1"\n' > run.sh
     printf 'import sys\n\nprint(sys.argv)\n' > tool.py

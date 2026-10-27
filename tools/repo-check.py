@@ -134,7 +134,7 @@ CSPELL_CONFIGS = [
 YAMLLINT_CONFIGS = [".yamllint", ".yamllint.yml", ".yamllint.yaml"]
 
 
-# --- no dead relative .md links ---
+# --- no dead relative .md links, in prose: a link shown as code is an example. ---
 MD_LINK = re.compile(r"\]\([^)]+\.md[^)]*\)")
 
 
@@ -142,8 +142,8 @@ def check_md_links(md_files: list[str]) -> tuple[bool, str]:
     msgs = []
     for f in md_files:
         base = os.path.dirname(f)
-        for line in read_lines(f):
-            for match in MD_LINK.findall(line):
+        for _, _, prose in prose_lines(f):
+            for match in MD_LINK.findall(prose):
                 link = match[2:-1].split("#", 1)[0]
                 if re.match(r"[a-z]+:", link):
                     continue
