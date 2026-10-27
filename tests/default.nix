@@ -30,6 +30,8 @@ let
     printf 'a: 1\n' > config.yaml
     printf '#!/usr/bin/env bash\nset -euo pipefail\necho "$1"\n' > run.sh
     printf 'import sys\n\nprint(sys.argv)\n' > tool.py
+    # Links out of the repository: a clone of another repository next to it.
+    mkdir -p ../b && printf '# Doc\n' > ../b/d.md && printf 'pdf\n' > ../b/s.pdf
   '';
 in
 {
@@ -64,9 +66,13 @@ in
         printf '#Heading\n\n[gone](missing.md)\n\nThe color.\n' > vendor/lint.md
         printf '#!/usr/bin/env bash\necho $1\n' > vendor/unsafe.sh
         printf 'no newline' > vendor/nonl.txt
+        # A pair, a pair whose clone is missing, a local-only link, a web link.
+        printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/d.md))\n\n[x.md](https://c.org/o/g/src/branch/main/x.md) ([local](../g/x.md))\n\nData sheet ([local](../b/s.pdf))\n\n[A page](https://example.org/page)\n' > out.md
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
         grep -q '2 deviation(s) recorded' "$TMPDIR/out"
+        grep -q '2 pair(s), 1 local-only link(s)' "$TMPDIR/out"
+        grep -q 'out.md:5: ../g/x.md: not cloned here' "$TMPDIR/out"
         grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
         touch $out
       '';
@@ -108,6 +114,9 @@ in
         printf '#!/usr/bin/env bash\necho $1\n' > unsafe.sh          # shellcheck
         printf 'import os\nx=1\n' > unused.py                        # ruff check, ruff format
         printf '# Links\n\n[gone](missing.md)\n' > links.md          # .md links
+        # links out of the repository: halves that disagree, a file missing in its
+        # clone, a link out with no form
+        printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/e.md))\n\n[a.md](https://c.org/o/b/src/branch/main/a.md) ([local](../b/a.md))\n\n[d](../b/d.md)\n' > out.md
         printf '# Spelling\n\nThe color.\n' > spelling.md            # -ize spelling
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
         # gitleaks (staged), which scans vendored folders too
@@ -127,8 +136,40 @@ in
         [ "$status" -eq 1 ]
         grep '^==> FAILED: ' "$TMPDIR/out" | sed 's/^==> FAILED: //' > "$TMPDIR/failed"
         diff -u ${./faults-expected.txt} "$TMPDIR/failed"
+        grep -q '../b/e.md: does not match' "$TMPDIR/out"
+        grep -q '../b/a.md (missing)' "$TMPDIR/out"
+        grep -q '../b/d.md: write' "$TMPDIR/out"
         touch $out
       '';
+
+  # In CI the remote half of a pair is checked through the forge's API, here a
+  # local server with the forge's paths, and local-only links are counted.
+  repo-check-ci = pkgs.runCommand "repo-check-ci" { nativeBuildInputs = tools; } ''
+    ${setup}
+    mkdir -p "$TMPDIR/api/api/v1/repos/o/b/contents"
+    printf '{}\n' > "$TMPDIR/api/api/v1/repos/o/b/contents/d.md"
+    python3 -m http.server --bind 127.0.0.1 --directory "$TMPDIR/api" 8765 > "$TMPDIR/server.log" 2>&1 &
+    for _ in $(seq 50); do
+      python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8765/")' 2>/dev/null && break
+      sleep 0.1
+    done
+    export CI=true REPO_CHECK_FORGE_API=http://127.0.0.1:8765
+    printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/d.md))\n\nData sheet ([local](../x/s.pdf))\n' > out.md
+    git add -A
+    # No token: a public repository answers anyway.
+    repo-check -v | tee "$TMPDIR/out"
+    grep -q '1 pair(s), 1 local-only link(s) (local-only not checkable in CI)' "$TMPDIR/out"
+    # A remote half the forge does not have: without a token it may be private.
+    printf '\n[a.md](https://c.org/o/b/src/branch/main/a.md) ([local](../b/a.md))\n' >> out.md
+    git add -A
+    if repo-check > "$TMPDIR/out"; then cat "$TMPDIR/out"; exit 1; fi
+    grep -q 'missing on the forge, or private: set REPO_CHECK_FORGE_TOKEN' "$TMPDIR/out"
+    # With a token, a 404 means missing.
+    export REPO_CHECK_FORGE_TOKEN=t
+    if repo-check > "$TMPDIR/out"; then cat "$TMPDIR/out"; exit 1; fi
+    grep -q 'a.md missing on the forge$' "$TMPDIR/out"
+    touch $out
+  '';
 
   # lib.mkRepo turns its arguments into the deviations repo-check requires.
   mkrepo-deviations =

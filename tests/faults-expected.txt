@@ -7,6 +7,7 @@ shellcheck
 ruff check
 ruff format --check
 no broken relative .md links
+links out of the repository
 -ize spelling in prose
 no private-key material
 gitleaks (staged)

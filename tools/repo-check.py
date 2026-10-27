@@ -23,6 +23,9 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 VERBOSE = False
@@ -134,8 +137,14 @@ CSPELL_CONFIGS = [
 YAMLLINT_CONFIGS = [".yamllint", ".yamllint.yml", ".yamllint.yaml"]
 
 
-# --- no dead relative .md links, in prose: a link shown as code is an example. ---
+# --- no dead relative .md links, in prose: a link shown as code is an example. Links
+#     out of the repository are the next check's. ---
 MD_LINK = re.compile(r"\]\([^)]+\.md[^)]*\)")
+
+
+def leaves_repo(path: str) -> bool:
+    """A path relative to the top level that points outside it, symlinks not followed."""
+    return os.path.relpath(os.path.abspath(path)).startswith("..")
 
 
 def check_md_links(md_files: list[str]) -> tuple[bool, str]:
@@ -145,12 +154,118 @@ def check_md_links(md_files: list[str]) -> tuple[bool, str]:
         for _, _, prose in prose_lines(f):
             for match in MD_LINK.findall(prose):
                 link = match[2:-1].split("#", 1)[0]
-                if re.match(r"[a-z]+:", link):
+                if re.match(r"[a-z]+:", link) or leaves_repo(os.path.join(base, link)):
                     continue
                 target = os.path.realpath(os.path.join(base, link))
                 if not os.path.isfile(target):
                     msgs.append(f"    {f} -> {link} (missing)")
     return not msgs, "\n".join(msgs)
+
+
+# --- links out of the repository by a local path (R-link-15): a pair, the remote link
+#     then `([local](path))`, or `([local](path))` alone for a place with no remote.
+#     Locally the local half must exist, and a pair's two halves must name the same
+#     file; a pair whose clone is missing is reported, not failed. In CI (CI=true)
+#     there is no home directory: the remote half is checked through the forge's API,
+#     anonymously for a public repository, with REPO_CHECK_FORGE_TOKEN for a private
+#     one (which answers 404 without it), and local-only links are skipped and
+#     counted. REPO_CHECK_FORGE_API replaces the API's base URL, for the tests. ---
+LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
+FORGE_URL = re.compile(
+    r"^https://(?P<host>[^/]+)/(?P<owner>[^/]+)/(?P<repo>[^/]+)"
+    r"/(?:src/branch|blob|tree)/(?P<ref>[^/]+)/?(?P<path>[^#?]*)"
+)
+
+
+def forge_has(m: re.Match, token: str) -> str | None:
+    """None when the forge has the file at that ref, else why not."""
+    path = urllib.parse.unquote(m["path"]).rstrip("/")
+    if m["host"] == "github.com":
+        base = os.environ.get("REPO_CHECK_FORGE_API", "https://api.github.com")
+        api = f"{base}/repos/{m['owner']}/{m['repo']}/contents/{path}"
+    else:
+        base = os.environ.get("REPO_CHECK_FORGE_API", f"https://{m['host']}")
+        api = f"{base}/api/v1/repos/{m['owner']}/{m['repo']}/contents/{path}"
+    headers = {"Authorization": f"token {token}"} if token else {}
+    req = urllib.request.Request(f"{api}?ref={m['ref']}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30):
+            return None
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 404) and not token:
+            return "missing on the forge, or private: set REPO_CHECK_FORGE_TOKEN"
+        return "missing on the forge" if e.code == 404 else f"forge answered {e.code}"
+    except urllib.error.URLError as e:
+        return f"forge not reached ({e.reason})"
+
+
+def check_outside_links(md_files: list[str]) -> tuple[bool, str]:
+    in_ci = os.environ.get("CI") == "true"
+    token = os.environ.get("REPO_CHECK_FORGE_TOKEN", "")
+    bad, notes = [], []
+    pairs = local_only = 0
+    for f in md_files:
+        base = os.path.dirname(f)
+        for n, _, prose in prose_lines(f):
+            prev = None
+            for m in LINK.finditer(prose):
+                link = m[2].split("#", 1)[0]
+                outside = (
+                    link
+                    and not re.match(r"[a-z]+:", link)
+                    and leaves_repo(os.path.join(base, link))
+                )
+                if not outside:
+                    prev = m
+                    continue
+                where = f"{f}:{n}: {link}"
+                wrapped = (
+                    prose[m.start() - 1 : m.start()] == "("
+                    and prose[m.end() : m.end() + 1] == ")"
+                )
+                if m[1] != "local" or not wrapped:
+                    bad.append(
+                        f"    {where}: write `name ([local](path))`, after the remote link if there is one"
+                    )
+                    prev = m
+                    continue
+                remote = (
+                    FORGE_URL.match(prev[2])
+                    if prev and prose[prev.end() : m.start()] == " ("
+                    else None
+                )
+                if remote:
+                    pairs += 1
+                    if in_ci:
+                        if why := forge_has(remote, token):
+                            bad.append(f"    {where}: {prev[2]} {why}")
+                    else:
+                        local = os.path.abspath(os.path.join(base, link)).rstrip("/")
+                        tail = "/".join(
+                            p
+                            for p in [
+                                remote["repo"],
+                                urllib.parse.unquote(remote["path"]).rstrip("/"),
+                            ]
+                            if p
+                        )
+                        if not local.endswith("/" + tail):
+                            bad.append(f"    {where}: does not match {prev[2]}")
+                        elif not os.path.isdir(local[: -len(tail)] + remote["repo"]):
+                            notes.append(f"    {where}: not cloned here")
+                        elif not os.path.exists(local):
+                            bad.append(f"    {where} (missing)")
+                else:
+                    local_only += 1
+                    if not in_ci and not os.path.exists(os.path.join(base, link)):
+                        bad.append(f"    {where} (missing)")
+                prev = m
+    summary = f"    {pairs} pair(s), {local_only} local-only link(s)" + (
+        " (local-only not checkable in CI)" if in_ci and local_only else ""
+    )
+    if bad:
+        return False, "\n".join(bad)
+    return True, "\n".join([summary] + notes) if VERBOSE else ""
 
 
 # --- -ize spelling in prose (R-lang-04), and the British nouns that go with it. Two
@@ -457,6 +572,7 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
             else "no flake.nix",
         ),
         ("no broken relative .md links", lambda: check_md_links(md)),
+        ("links out of the repository", lambda: check_outside_links(md)),
         ("-ize spelling in prose", lambda: check_spelling(md, config)),
         ("no private-key material", lambda: check_no_leaked_keys(text, config)),
         # gitleaks: what is staged now, then the whole history; in CI nothing is staged,
