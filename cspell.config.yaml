@@ -1,0 +1,32 @@
+version: "0.2"
+# Spell-check config of this repository. It imports the managed profile from
+# the template, the one copier hands every descendant.
+import:
+  - ./template/.cspell/oxford.yaml
+
+enableFiletypes:
+  - nix
+
+dictionaryDefinitions:
+  - name: code-words
+    path: ./.cspell/code-words.txt
+    description: Tokens found only in code (identifiers, flags, package names)
+    addWords: false
+  - name: project-words
+    path: ./.cspell/project-words.txt
+    description: Words specific to the repository (names, acronyms, jargon)
+    addWords: true  # the only writable target: "Add to Dictionary" lands here
+
+dictionaries:
+  - project-words
+  - code-words
+
+ignorePaths:
+  - .git/**
+  - flake.lock
+  - cspell.config.yaml  # these files and the word lists are intentional tokens
+  - .cspell/**
+  - template/cspell.config.yaml.jinja
+  - template/.cspell/**
+  - LICENSES/**  # licence texts are verbatim, some in US spelling
+  - "template/*LICENSES*/**"

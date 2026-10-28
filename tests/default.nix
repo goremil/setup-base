@@ -4,6 +4,8 @@
 # checks listed in faults-expected.txt. Faulty content is generated here, not
 # stored, so this repository's own checks stay clean: secrets and markers are
 # assembled from pieces with printf.
+# The fixtures spell `color` and `organise` on purpose, and Polish drafts.
+# cspell:ignore color organise Szkic Notatka którą później przetłumaczę
 {
   pkgs,
   lib,
@@ -15,6 +17,12 @@ let
     repo-check
     commit-msg-check
   ];
+  # The spelling settings a repository gets from the template, and what
+  # lib.mkRepo adds for drafts in another language (R-lang-10).
+  drafts = {
+    draftLanguages = [ "pl" ];
+    cspellImports = [ "${(lib.cspellDictionaries pkgs).pl}/cspell-ext.json" ];
+  };
   setup = ''
     export HOME="$TMPDIR" RUFF_CACHE_DIR="$TMPDIR/ruff-cache"
     export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -30,6 +38,8 @@ let
     printf 'a: 1\n' > config.yaml
     printf '#!/usr/bin/env bash\nset -euo pipefail\necho "$1"\n' > run.sh
     printf 'import sys\n\nprint(sys.argv)\n' > tool.py
+    sed '/^# The repository.s name/,$d' ${../template/cspell.config.yaml.jinja} > cspell.config.yaml
+    cp -r ${../template/.cspell} .cspell && chmod -R u+w .cspell cspell.config.yaml
     # Links out of the repository: a clone of another repository next to it.
     mkdir -p ../b && printf '# Doc\n' > ../b/d.md && printf 'pdf\n' > ../b/s.pdf
   '';
@@ -42,24 +52,29 @@ in
     pkgs.runCommand "repo-check-clean"
       {
         nativeBuildInputs = tools;
-        config = builtins.toJSON {
-          rulesDir = "${../rules}";
-          requiredDeviations = [
-            {
-              rule = "R-lang-04";
-              why = "exclude.spelling";
-            }
-            {
-              rule = "R-check-07";
-              why = "vendored";
-            }
-          ];
-          vendored = [ "vendor/" ];
-        };
+        config = builtins.toJSON (
+          drafts
+          // {
+            rulesDir = "${../rules}";
+            requiredDeviations = [
+              {
+                rule = "R-lang-04";
+                why = "exclude.spelling";
+              }
+              {
+                rule = "R-check-07";
+                why = "vendored";
+              }
+            ];
+            vendored = [ "vendor/" ];
+          }
+        );
         passAsFile = [ "config" ];
       }
       ''
         ${setup}
+        # A draft in Polish, checked with the Polish dictionary in a private repository.
+        printf '# Szkic\n\nNotatka, którą później przetłumaczę.\n' > draft.pl.md
         printf '# Agents\n\n## Deviations\n\n| Rule | What differs | Reason | Since | Decision |\n| --- | --- | --- | --- | --- |\n| R-lang-04 | A quoted British text | Verbatim quote | 2026-10-25 | A note |\n| R-check-07 | vendor/ is not checked | Verbatim copies | 2026-10-27 | A note |\n' > AGENTS.md
         mkdir -p vendor/deep
         printf '{ unused }: let a = 1; in { a = a; }\n' > vendor/deep/bad.nix
@@ -71,6 +86,7 @@ in
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
         grep -q '2 deviation(s) recorded' "$TMPDIR/out"
+        grep -q '1 draft(s) in another language' "$TMPDIR/out"
         grep -q '2 pair(s), 1 local-only link(s)' "$TMPDIR/out"
         grep -q 'out.md:5: ../g/x.md: not cloned here' "$TMPDIR/out"
         grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
@@ -81,23 +97,27 @@ in
     pkgs.runCommand "repo-check-faults"
       {
         nativeBuildInputs = tools;
-        config = builtins.toJSON {
-          hugeFileKiB = 1;
-          rulesDir = "${../rules}";
-          vendored = [ "vendor/" ];
-          requiredDeviations = [
-            {
-              rule = "R-lang-04";
-              why = "exclude.spelling";
-            }
-          ];
-          extraChecks = [
-            {
-              name = "extra check";
-              command = [ "false" ];
-            }
-          ];
-        };
+        config = builtins.toJSON (
+          drafts
+          // {
+            hugeFileKiB = 1;
+            public = true;
+            rulesDir = "${../rules}";
+            vendored = [ "vendor/" ];
+            requiredDeviations = [
+              {
+                rule = "R-lang-04";
+                why = "exclude.spelling";
+              }
+            ];
+            extraChecks = [
+              {
+                name = "extra check";
+                command = [ "false" ];
+              }
+            ];
+          }
+        );
         passAsFile = [ "config" ];
       }
       ''
@@ -118,6 +138,8 @@ in
         # clone, a link out with no form
         printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/e.md))\n\n[a.md](https://c.org/o/b/src/branch/main/a.md) ([local](../b/a.md))\n\n[d](../b/d.md)\n' > out.md
         printf '# Spelling\n\nThe color.\n' > spelling.md            # -ize spelling
+        printf '# Oxford\n\nWe organise it.\n' > oxford.md          # cspell (also -ize)
+        printf '# Szkic\n\nNotatka.\n' > draft.pl.md               # a draft, public repository
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
         # gitleaks (staged), which scans vendored folders too
         mkdir vendor && printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > vendor/new.txt

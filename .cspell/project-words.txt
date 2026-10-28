@@ -1,0 +1,12 @@
+# Words specific to the repository (names, acronyms, jargon), one per line.
+attrsets
+Codeberg
+Forgejo
+linted
+linters
+mdlint
+scrumguides
+vendored
+wikilinks
+jinja
+oxendict

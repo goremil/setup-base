@@ -9,11 +9,12 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 - **R-lang-01**: Text MUST be UTF-8, except in a context where UTF-8 is unavailable. Check: 0. Since: not recorded.
 - **R-lang-02**: Before rewording content to get around a character that breaks a renderer or parser, the author SHOULD look for a UTF-8 character that looks the same (`⟨domain⟩` for `<domain>`); a real ASCII-only constraint MUST be named as an exception. Check: 0. Since: 2026-09.
 - **R-lang-03**: Text MUST use the extended Latin alphabet; a proper noun or trademark in another script MUST come with a Latin transliteration. Check: 0. Since: not recorded.
-- **R-lang-04**: Everything written to a file or repository MUST be in international English with `-ize` spelling; a proper noun or idiom in another language MUST come with a transliteration and a translation. Check: 0 + 1. Since: not recorded.
+- **R-lang-04**: Everything written to a file or repository MUST be in international English in Oxford spelling (`en-GB-oxendict`: British spelling with `-ize`), except a draft under R-lang-10; a proper noun or idiom in another language MUST come with a transliteration and a translation. Check: 4 in part (cspell with the managed profile, the `-ize` check of `repo-check`), else 0 + 1. Since: not recorded; Oxford spelling 2026-10-27.
 - **R-lang-06**: Text MUST be concise and factual; Markdown files MUST be plain, professional, unambiguous English in short sentences that keep their context, without decorative elements. Check: 4 in part (custom rules `no-emoji`, `no-hr`, `no-alerts`, `bold-density` in the lint profiles), else 0 + 1. Since: 2026-10-23.
 - **R-lang-07**: When a reply refers to steps, commands or content from earlier in the conversation, it MUST repeat them instead of "see above" or "steps 4–5"; a document location MUST be given as a link with the line range. Check: 0. Since: 2026-09.
 - **R-lang-08**: Dates MUST be ISO 8601 (`YYYY-MM-DD`), times on the 24-hour clock, units metric. Check: 0. Since: not recorded.
 - **R-lang-09**: Names of repositories, commands, packages, files, options and note slugs MUST be written as inline code (`setup-base`, `nixos-rebuild`); proper names of projects and products MUST stay prose (NixOS, GitHub). Check: 4 in part (MD044 with a names list), else 0. Since: 2026-10-24.
+- **R-lang-10**: A draft MAY be written in another language in a private repository or a notes vault, in a file named for the language (`note.pl.md`); its English translation MUST replace it, the original staying in history, and a public repository MUST NOT contain one. Check: 4 (cspell checks a draft with its language's dictionary; `repo-check` refuses one in a public repository). Since: 2026-10-27.
 
 ## Content media
 

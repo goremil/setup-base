@@ -13,7 +13,9 @@ there is nothing for it (no YAML files, no cspell config). Per-repository settin
 come from the JSON file named by REPO_CHECK_CONFIG, which `lib.mkRepo` writes from its
 arguments: `exclude` (regexes per check), `hugeFileKiB`, `extraChecks` (name and
 command, run like the tool checks) and `vendored` (folders kept verbatim, which every
-check but gitleaks skips).
+check but gitleaks skips), `public`, `draftLanguages` and `cspellImports` (R-lang-10:
+drafts in another language, refused in a public repository and spell-checked with
+the dictionaries imported on top of the repository's cspell config).
 """
 
 import argparse
@@ -22,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -42,6 +45,9 @@ DEFAULT_CONFIG = {
     "rulesDir": None,
     "requiredDeviations": [],
     "vendored": [],
+    "public": False,
+    "draftLanguages": [],
+    "cspellImports": [],
 }
 
 
@@ -59,6 +65,9 @@ def load_config() -> dict:
             "rulesDir",
             "requiredDeviations",
             "vendored",
+            "public",
+            "draftLanguages",
+            "cspellImports",
         ):
             if key in given:
                 config[key] = given[key]
@@ -67,6 +76,11 @@ def load_config() -> dict:
 
 def excluded(config: dict, check: str, path: str) -> bool:
     return any(re.search(p, path) for p in config["exclude"].get(check, []))
+
+
+def is_draft(config: dict, path: str) -> bool:
+    """A draft in another language (R-lang-10): `note.pl.md` for each draft language."""
+    return any(path.endswith(f".{lang}.md") for lang in config["draftLanguages"])
 
 
 def git(*args: str) -> list[str]:
@@ -268,6 +282,7 @@ def check_outside_links(md_files: list[str]) -> tuple[bool, str]:
     return True, "\n".join([summary] + notes) if VERBOSE else ""
 
 
+# The forbidden forms below are spelled out on purpose. cspell:disable
 # --- -ize spelling in prose (R-lang-04), and the British nouns that go with it. Two
 #     fixed word lists, not a general regex, which would hit code and option names
 #     that must stay as they are (`color` in CSS, `auto-optimise-store` in Nix). Only
@@ -301,6 +316,7 @@ WRONG_NOUNS = [
     "favorite",
     "favorites",
 ]
+# cspell:enable
 
 
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
@@ -337,9 +353,39 @@ def grep_words(files: list[str], words: list[str]) -> list[str]:
 
 
 def check_spelling(md_files: list[str], config: dict) -> tuple[bool, str]:
-    prose = [f for f in md_files if not excluded(config, "spelling", f)]
+    prose = [
+        f
+        for f in md_files
+        if not excluded(config, "spelling", f) and not is_draft(config, f)
+    ]
     hits = grep_words(prose, WRONG_VERBS + WRONG_NOUNS)
     return not hits, "\n".join(hits)
+
+
+# --- cspell with the repository's own config, plus the dictionaries of the draft
+#     languages (R-lang-10) imported on top in a config of its own, so the
+#     repository's file never names a store path. ---
+def run_cspell(cspell_config: str, config: dict, files: list[str]) -> tuple[bool, str]:
+    if not config["cspellImports"]:
+        return run_tool("cspell", "--no-progress", *files)
+    with tempfile.TemporaryDirectory() as tmp:
+        combined = os.path.join(tmp, "cspell.json")
+        with open(combined, "w", encoding="utf-8") as f:
+            imports = [os.path.abspath(cspell_config)] + config["cspellImports"]
+            json.dump({"version": "0.2", "import": imports}, f)
+        return run_tool("cspell", "--no-progress", "--config", combined, *files)
+
+
+# --- drafts in another language (R-lang-10): allowed in a private repository or a
+#     vault, refused in a public one. ---
+def check_drafts(md_files: list[str], config: dict) -> tuple[bool, str]:
+    drafts = [f for f in md_files if is_draft(config, f)]
+    if config["public"] and drafts:
+        return False, "\n".join(
+            f"{f}: a draft in another language, in a public repository" for f in drafts
+        )
+    note = f"    {len(drafts)} draft(s) in another language"
+    return True, note if VERBOSE else ""
 
 
 # --- no private-key material in plaintext: the age secret-key prefix and the standard
@@ -540,7 +586,9 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
         ("deadnix --fail", tool(["deadnix", "--fail"], nix, "no Nix files")),
         (
             "cspell",
-            tool(["cspell", "--no-progress"], nix + md, "no Nix or Markdown files")
+            (lambda: run_cspell(cspell_config, config, nix + md))
+            if cspell_config and nix + md
+            else "no Nix or Markdown files"
             if cspell_config
             else "no cspell config",
         ),
@@ -574,6 +622,7 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
         ("no broken relative .md links", lambda: check_md_links(md)),
         ("links out of the repository", lambda: check_outside_links(md)),
         ("-ize spelling in prose", lambda: check_spelling(md, config)),
+        ("drafts in another language", lambda: check_drafts(md, config)),
         ("no private-key material", lambda: check_no_leaked_keys(text, config)),
         # gitleaks: what is staged now, then the whole history; in CI nothing is staged,
         # so the history scan carries it. --redact keeps a hit out of logs.

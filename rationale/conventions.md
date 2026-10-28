@@ -2,8 +2,10 @@
 
 Explanation for the requirements in [conventions.md](../rules/conventions.md), one section per requirement ID or group. Read on demand.
 
-## R-lang-01 to R-lang-09
+## R-lang-01 to R-lang-10
 
+- R-lang-04: Oxford spelling is the closest a written standard comes to international English: the United Nations spells by the Oxford Dictionary in its British setting, and `-ize` is shared with US spelling. cspell's `en-GB` accepts both `-ize` and `-ise`, so the managed profile (`template/.cspell/oxford.yaml`) forbids the `-ise` forms by list (`oxford-ize.txt`). Two gaps, checked 2026-10-27 with cspell: in Markdown the `html` dictionary accepts `color`, which the `-ize` check of `repo-check` covers in prose; Nix spells some flags and options with `-ise` (`--realise`, `auto-optimise-store`), so the profile skips the forbidden forms inside hyphenated tokens.
+- R-lang-10: an author whose first language is not English writes a complex thought better in it first. The suffix lets cspell switch language by file name (an `overrides` entry); the dictionary is the npm package `@cspell/dict-pl_pl`, fetched by `lib.cspellDictionaries` and imported by `repo-check` in a config of its own, since a missing import fails cspell outright and an editor outside the dev shell would lose the whole repository's check. A public repository is published as it is, so a draft has no place there.
 - R-lang-06: the agent profile saves tokens without losing context. The forge and hybrid profiles relax it (R-media-02).
 - R-lang-09: inline code marks a name unambiguously as an identifier for agents and keeps prose checks (MD044, cspell's prose rules) off it.
 

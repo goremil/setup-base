@@ -1,0 +1,9 @@
+# Tokens found only in code (identifiers, flags, package names), one per line.
+EACCES
+endswith
+mkrepo
+nonl
+rstrip
+tlsv
+urllib
+urlopen

@@ -23,6 +23,8 @@ path = [
   ".editorconfig",
   ".gitignore",
   ".forgejo/**",
+  "cspell.config.yaml",
+  ".cspell/**",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 setup-base contributors"

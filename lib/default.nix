@@ -130,6 +130,13 @@ in
               vendored
               ;
             rulesDir = "${base}/rules";
+            # R-lang-10: drafts in another language are checked with its
+            # dictionary, and refused in a public repository.
+            public = hasReuse;
+            draftLanguages = builtins.attrNames (base.lib.cspellDictionaries pkgs);
+            cspellImports = map (d: "${d}/cspell-ext.json") (
+              builtins.attrValues (base.lib.cspellDictionaries pkgs)
+            );
           }
         );
     in
@@ -186,6 +193,17 @@ in
         }
       );
     };
+
+  # cspell dictionaries for the draft languages of R-lang-10, keyed by the
+  # suffix of a draft's name (`note.pl.md`). repo-check imports each one on top
+  # of the repository's own cspell config, so that config never names a store
+  # path an editor outside the dev shell could not resolve.
+  cspellDictionaries = pkgs: {
+    pl = pkgs.fetchzip {
+      url = "https://registry.npmjs.org/@cspell/dict-pl_pl/-/dict-pl_pl-3.0.8.tgz";
+      hash = "sha256-PKDInvOHMZdhtgdGgqrplaHBAl8liHw1gPaPoUQNmCo=";
+    };
+  };
 
   # Every tool repo-check calls; it skips the ones a repository has no files for.
   checkTools =

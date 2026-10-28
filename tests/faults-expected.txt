@@ -1,6 +1,7 @@
 nixfmt --check
 statix check
 deadnix --fail
+cspell
 markdownlint
 yamllint
 shellcheck
@@ -9,6 +10,7 @@ ruff format --check
 no broken relative .md links
 links out of the repository
 -ize spelling in prose
+drafts in another language
 no private-key material
 gitleaks (staged)
 gitleaks (history)

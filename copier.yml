@@ -6,6 +6,12 @@
 
 _subdirectory: template
 _min_copier_version: "9.0.0"
+# The repository's own spelling settings and word lists: written once, never
+# replaced by copier update (the managed profile in .cspell/ is).
+_skip_if_exists:
+  - cspell.config.yaml
+  - .cspell/project-words.txt
+  - .cspell/code-words.txt
 
 project_name:
   type: str
