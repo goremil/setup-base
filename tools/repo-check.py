@@ -418,6 +418,68 @@ def check_no_leaked_keys(files: list[str], config: dict) -> tuple[bool, str]:
     return not hits, "\n".join(hits)
 
 
+# --- git-crypt: every tracked file its attributes give to git-crypt is stored
+#     encrypted, so a missing filter (git-crypt not installed, or not set up in this
+#     clone) never commits plain text. The check reads the index, so it holds in an
+#     unlocked checkout and a locked one alike. A locked file (CI, a clone without
+#     the key) is ciphertext, which every text check skips as binary; the count is
+#     reported, so the skip is never silent. ---
+GIT_CRYPT_HEADER = b"\0GITCRYPT\0"
+
+
+def git_crypt_files() -> list[tuple[str, str]]:
+    """(path, blob ID in the index) of each tracked file with filter=git-crypt."""
+    staged = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split("\0")
+    blobs = {e.split("\t", 1)[1]: e.split()[1] for e in staged if e}
+    if not blobs:
+        return []
+    attrs = subprocess.run(
+        ["git", "check-attr", "-z", "--stdin", "filter"],
+        input="\0".join(blobs),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split("\0")
+    return [
+        (path, blobs[path])
+        for path, value in zip(attrs[0::3], attrs[2::3])
+        if value == "git-crypt"
+    ]
+
+
+def check_git_crypt(entries: list[tuple[str, str]]) -> tuple[bool, str]:
+    batch = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        input="".join(f"{blob}\n" for _, blob in entries).encode(),
+        check=True,
+        capture_output=True,
+    ).stdout
+    plain, pos = [], 0
+    for path, _ in entries:
+        header_end = batch.index(b"\n", pos)
+        size = int(batch[pos:header_end].split()[2])
+        content = batch[header_end + 1 : header_end + 1 + size]
+        pos = header_end + 1 + size + 1
+        if not content.startswith(GIT_CRYPT_HEADER):
+            plain.append(f"    {path}: given to git-crypt, but stored in plain text")
+    if plain:
+        return False, "\n".join(plain)
+    locked = 0
+    for path, _ in entries:
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                locked += f.read(len(GIT_CRYPT_HEADER)) == GIT_CRYPT_HEADER
+    msg = f"    {len(entries)} file(s) encrypted with git-crypt"
+    if locked:
+        msg += f", {locked} locked here (their content is not checked)"
+    return True, msg
+
+
 # --- R-git-07: every commit reachable from HEAD and every tag carries a good
 #     signature. Locally git verifies with the user's keyring. In CI (CI=true) there
 #     is none, so the owner's public keys go into a scratch keyring, from the URL in
@@ -669,6 +731,7 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
     sh = [f for f in text if not f.endswith(".md") and is_bash_script(f)]
     cspell_config = next((c for c in CSPELL_CONFIGS if os.path.isfile(c)), None)
     yamllint_config = next((c for c in YAMLLINT_CONFIGS if os.path.isfile(c)), None)
+    crypt = git_crypt_files()
 
     def tool(cmd: list[str], files: list[str], reason: str) -> object:
         return (lambda: run_tool(*cmd, *files)) if files else reason
@@ -729,6 +792,10 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
         ("-ize spelling in prose", lambda: check_spelling(md, config)),
         ("drafts in another language", lambda: check_drafts(md, config)),
         ("no private-key material", lambda: check_no_leaked_keys(text, config)),
+        (
+            "git-crypt files encrypted",
+            (lambda: check_git_crypt(crypt)) if crypt else "no git-crypt files",
+        ),
         # gitleaks: what is staged now, then the whole history; in CI nothing is staged,
         # so the history scan carries it. --redact keeps a hit out of logs.
         (

@@ -12,6 +12,7 @@ links out of the repository
 -ize spelling in prose
 drafts in another language
 no private-key material
+git-crypt files encrypted
 gitleaks (staged)
 gitleaks (history)
 signed commits and tags

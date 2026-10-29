@@ -85,8 +85,16 @@ in
         printf 'no newline' > vendor/nonl.txt
         # A pair, a pair whose clone is missing, a local-only link, a web link.
         printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/d.md))\n\n[x.md](https://c.org/o/g/src/branch/main/x.md) ([local](../g/x.md))\n\nData sheet ([local](../b/s.pdf))\n\n[A page](https://example.org/page)\n' > out.md
+        # git-crypt, with a stand-in filter that writes its header: one file unlocked
+        # (plain here, encrypted in the index), one locked (ciphertext here too).
+        git config filter.git-crypt.clean "printf '\\000GITCRYPT\\000'; cat"
+        printf 'secret/** filter=git-crypt diff=git-crypt\n' > .gitattributes
+        mkdir secret
+        printf '# Open\n\nPlain here.\n' > secret/open.md
+        printf '\0GITCRYPT\0#Heading\n' > secret/locked.md
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
+        grep -q '2 file(s) encrypted with git-crypt, 1 locked here' "$TMPDIR/out"
         grep -q '2 deviation(s) recorded' "$TMPDIR/out"
         grep -q '1 draft(s) in another language' "$TMPDIR/out"
         grep -q '2 pair(s), 1 local-only link(s)' "$TMPDIR/out"
@@ -150,6 +158,9 @@ in
         export XDG_CONFIG_HOME="$TMPDIR/xdg"
         printf '# Szkic\n\nNotatka.\n' > draft.pl.md               # a draft, public repository
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
+        # git-crypt: a file given to it, with no filter set up in this clone
+        printf 'plain.md filter=git-crypt diff=git-crypt\n' > .gitattributes
+        printf '# Plain\n\nStored as it is.\n' > plain.md
         # gitleaks (staged), which scans vendored folders too
         mkdir vendor && printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > vendor/new.txt
         printf '%s HEAD\n' "$(printf '<%.0s' 1 2 3 4 5 6 7)" > conflict.txt  # conflict markers
@@ -171,6 +182,7 @@ in
         grep -q '../b/a.md (missing)' "$TMPDIR/out"
         grep -q '../b/d.md: write' "$TMPDIR/out"
         grep -q 'Unknown word (qwzxv)' "$TMPDIR/out"
+        grep -q 'plain.md: given to git-crypt, but stored in plain text' "$TMPDIR/out"
         touch $out
       '';
 
