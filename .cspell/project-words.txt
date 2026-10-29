@@ -2,11 +2,12 @@
 attrsets
 Codeberg
 Forgejo
+jinja
 linted
 linters
 mdlint
+oxendict
 scrumguides
+unsquashed
 vendored
 wikilinks
-jinja
-oxendict

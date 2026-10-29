@@ -5,7 +5,7 @@
 # stored, so this repository's own checks stay clean: secrets and markers are
 # assembled from pieces with printf.
 # The fixtures spell `color` and `organise` on purpose, and Polish drafts.
-# cspell:ignore color organise Szkic Notatka którą później przetłumaczę
+# cspell:ignore color organise qwzxv Szkic Notatka którą później przetłumaczę
 {
   pkgs,
   lib,
@@ -141,6 +141,13 @@ in
         printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/e.md))\n\n[a.md](https://c.org/o/b/src/branch/main/a.md) ([local](../b/a.md))\n\n[d](../b/d.md)\n' > out.md
         printf '# Spelling\n\nThe color.\n' > spelling.md            # -ize spelling
         printf '# Oxford\n\nWe organise it.\n' > oxford.md          # cspell (also -ize)
+        # cspell keeps the user's global config out: a word only that config allows is
+        # still reported. (A global config takes effect through `import`, as
+        # `cspell link` writes it; a made-up word, since the -ise forms are flagged anyway.)
+        printf '# Global\n\nThe qwzxv word.\n' > global.md
+        mkdir -p "$TMPDIR/xdg/cspell" && printf '{"version": "0.2", "words": ["qwzxv"]}\n' > "$TMPDIR/allow.json"
+        printf '{"import": ["%s"]}\n' "$TMPDIR/allow.json" > "$TMPDIR/xdg/cspell/cspell.json"
+        export XDG_CONFIG_HOME="$TMPDIR/xdg"
         printf '# Szkic\n\nNotatka.\n' > draft.pl.md               # a draft, public repository
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
         # gitleaks (staged), which scans vendored folders too
@@ -163,6 +170,7 @@ in
         grep -q '../b/e.md: does not match' "$TMPDIR/out"
         grep -q '../b/a.md (missing)' "$TMPDIR/out"
         grep -q '../b/d.md: write' "$TMPDIR/out"
+        grep -q 'Unknown word (qwzxv)' "$TMPDIR/out"
         touch $out
       '';
 

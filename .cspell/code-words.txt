@@ -1,9 +1,11 @@
 # Tokens found only in code (identifiers, flags, package names), one per line.
 EACCES
 endswith
+GNUPGHOME
 mkrepo
 nonl
 rstrip
+signingkey
 tlsv
 urllib
 urlopen

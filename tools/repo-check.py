@@ -118,7 +118,7 @@ def text_files(files: list[str]) -> list[str]:
     return [f for f in files if os.path.getsize(f) > 0 and not is_binary(f)]
 
 
-def run_tool(*cmd: str) -> tuple[bool, str]:
+def run_tool(*cmd: str, env: dict | None = None) -> tuple[bool, str]:
     try:
         out = subprocess.run(
             cmd,
@@ -126,6 +126,7 @@ def run_tool(*cmd: str) -> tuple[bool, str]:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            env=env,
         )
     except FileNotFoundError:
         return False, f"    {cmd[0]}: not found (is this the devShell?)"
@@ -365,16 +366,21 @@ def check_spelling(md_files: list[str], config: dict) -> tuple[bool, str]:
 
 # --- cspell with the repository's own config, plus the dictionaries of the draft
 #     languages (R-lang-10) imported on top in a config of its own, so the
-#     repository's file never names a store path. ---
+#     repository's file never names a store path. The user's global cspell config
+#     ($XDG_CONFIG_HOME/cspell) is kept out with an empty XDG_CONFIG_HOME, so a
+#     word passes locally only if it passes in CI. ---
 def run_cspell(cspell_config: str, config: dict, files: list[str]) -> tuple[bool, str]:
-    if not config["cspellImports"]:
-        return run_tool("cspell", "--no-progress", *files)
     with tempfile.TemporaryDirectory() as tmp:
+        env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(tmp, "config"))
+        if not config["cspellImports"]:
+            return run_tool("cspell", "--no-progress", *files, env=env)
         combined = os.path.join(tmp, "cspell.json")
         with open(combined, "w", encoding="utf-8") as f:
             imports = [os.path.abspath(cspell_config)] + config["cspellImports"]
             json.dump({"version": "0.2", "import": imports}, f)
-        return run_tool("cspell", "--no-progress", "--config", combined, *files)
+        return run_tool(
+            "cspell", "--no-progress", "--config", combined, *files, env=env
+        )
 
 
 # --- drafts in another language (R-lang-10): allowed in a private repository or a
