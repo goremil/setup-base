@@ -423,13 +423,16 @@ def check_no_leaked_keys(files: list[str], config: dict) -> tuple[bool, str]:
 #     clone) never commits plain text. The check reads the index, so it holds in an
 #     unlocked checkout and a locked one alike. A locked file (CI, a clone without
 #     the key) is ciphertext, which every text check skips as binary; the count is
-#     reported, so the skip is never silent. ---
+#     reported, so the skip is never silent. Such a file must not be forced to text:
+#     git converts line endings after the clean filter, so `text`, or `eol` without
+#     `text=auto` (often from a nested .gitattributes), would turn CRLF bytes of the
+#     ciphertext into LF and corrupt it; `text=auto` sees binary and leaves it. ---
 GIT_CRYPT_HEADER = b"\0GITCRYPT\0"
 
 
-def git_crypt_files() -> list[tuple[str, str]]:
-    """(path, blob ID in the index) of each tracked file, not a symlink, with
-    filter=git-crypt."""
+def git_crypt_files() -> list[tuple[str, str, str]]:
+    """(path, blob ID in the index, whether line endings are forced) of each tracked
+    file, not a symlink, with filter=git-crypt."""
     staged = subprocess.run(
         ["git", "ls-files", "--stage", "-z"],
         check=True,
@@ -445,38 +448,51 @@ def git_crypt_files() -> list[tuple[str, str]]:
     if not blobs:
         return []
     attrs = subprocess.run(
-        ["git", "check-attr", "-z", "--stdin", "filter"],
+        ["git", "check-attr", "-z", "--stdin", "filter", "text", "eol"],
         input="\0".join(blobs),
         check=True,
         capture_output=True,
         text=True,
     ).stdout.split("\0")
+    found: dict[str, dict[str, str]] = {}
+    for path, attr, value in zip(attrs[0::3], attrs[1::3], attrs[2::3]):
+        found.setdefault(path, {})[attr] = value
     return [
-        (path, blobs[path])
-        for path, value in zip(attrs[0::3], attrs[2::3])
-        if value == "git-crypt"
+        (
+            path,
+            blobs[path],
+            a["text"] == "set"
+            or (a["text"] == "unspecified" and a["eol"] != "unspecified"),
+        )
+        for path, a in found.items()
+        if a["filter"] == "git-crypt"
     ]
 
 
-def check_git_crypt(entries: list[tuple[str, str]]) -> tuple[bool, str]:
+def check_git_crypt(entries: list[tuple[str, str, bool]]) -> tuple[bool, str]:
     batch = subprocess.run(
         ["git", "cat-file", "--batch"],
-        input="".join(f"{blob}\n" for _, blob in entries).encode(),
+        input="".join(f"{blob}\n" for _, blob, _ in entries).encode(),
         check=True,
         capture_output=True,
     ).stdout
-    plain, pos = [], 0
-    for path, _ in entries:
+    bad, pos = [], 0
+    for path, _, forced in entries:
         header_end = batch.index(b"\n", pos)
         size = int(batch[pos:header_end].split()[2])
         content = batch[header_end + 1 : header_end + 1 + size]
         pos = header_end + 1 + size + 1
         if not content.startswith(GIT_CRYPT_HEADER):
-            plain.append(f"    {path}: given to git-crypt, but stored in plain text")
-    if plain:
-        return False, "\n".join(plain)
+            bad.append(f"    {path}: given to git-crypt, but stored in plain text")
+        if forced:
+            bad.append(
+                f"    {path}: given to git-crypt, but forced to text "
+                "(`text` or `eol` without `text=auto`)"
+            )
+    if bad:
+        return False, "\n".join(bad)
     locked = 0
-    for path, _ in entries:
+    for path, _, _ in entries:
         if os.path.isfile(path):
             with open(path, "rb") as f:
                 locked += f.read(len(GIT_CRYPT_HEADER)) == GIT_CRYPT_HEADER

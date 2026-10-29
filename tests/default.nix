@@ -160,9 +160,12 @@ in
         export XDG_CONFIG_HOME="$TMPDIR/xdg"
         printf '# Szkic\n\nNotatka.\n' > draft.pl.md               # a draft, public repository
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
-        # git-crypt: a file given to it, with no filter set up in this clone
+        # git-crypt: a file given to it, with no filter set up in this clone, and one
+        # forced to text by a nested .gitattributes
         printf 'plain.md filter=git-crypt diff=git-crypt\n' > .gitattributes
         printf '# Plain\n\nStored as it is.\n' > plain.md
+        mkdir crlf && printf '* filter=git-crypt\n*.md eol=lf\n' > crlf/.gitattributes
+        printf '# Forced\n\nTo text.\n' > crlf/forced.md
         # gitleaks (staged), which scans vendored folders too
         mkdir vendor && printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > vendor/new.txt
         printf '%s HEAD\n' "$(printf '<%.0s' 1 2 3 4 5 6 7)" > conflict.txt  # conflict markers
@@ -185,6 +188,7 @@ in
         grep -q '../b/d.md: write' "$TMPDIR/out"
         grep -q 'Unknown word (qwzxv)' "$TMPDIR/out"
         grep -q 'plain.md: given to git-crypt, but stored in plain text' "$TMPDIR/out"
+        grep -q 'crlf/forced.md: given to git-crypt, but forced to text' "$TMPDIR/out"
         touch $out
       '';
 
