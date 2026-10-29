@@ -86,12 +86,14 @@ in
         # A pair, a pair whose clone is missing, a local-only link, a web link.
         printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/d.md))\n\n[x.md](https://c.org/o/g/src/branch/main/x.md) ([local](../g/x.md))\n\nData sheet ([local](../b/s.pdf))\n\n[A page](https://example.org/page)\n' > out.md
         # git-crypt, with a stand-in filter that writes its header: one file unlocked
-        # (plain here, encrypted in the index), one locked (ciphertext here too).
+        # (plain here, encrypted in the index), one locked (ciphertext here too), and a
+        # symlink, which git-crypt leaves as it is.
         git config filter.git-crypt.clean "printf '\\000GITCRYPT\\000'; cat"
         printf 'secret/** filter=git-crypt diff=git-crypt\n' > .gitattributes
         mkdir secret
         printf '# Open\n\nPlain here.\n' > secret/open.md
         printf '\0GITCRYPT\0#Heading\n' > secret/locked.md
+        ln -s open.md secret/link.md
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
         grep -q '2 file(s) encrypted with git-crypt, 1 locked here' "$TMPDIR/out"

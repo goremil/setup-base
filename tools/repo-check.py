@@ -428,14 +428,20 @@ GIT_CRYPT_HEADER = b"\0GITCRYPT\0"
 
 
 def git_crypt_files() -> list[tuple[str, str]]:
-    """(path, blob ID in the index) of each tracked file with filter=git-crypt."""
+    """(path, blob ID in the index) of each tracked file, not a symlink, with
+    filter=git-crypt."""
     staged = subprocess.run(
         ["git", "ls-files", "--stage", "-z"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout.split("\0")
-    blobs = {e.split("\t", 1)[1]: e.split()[1] for e in staged if e}
+    # git-crypt leaves a symlink's target as it is.
+    blobs = {
+        e.split("\t", 1)[1]: e.split()[1]
+        for e in staged
+        if e and not e.startswith("120000 ")
+    }
     if not blobs:
         return []
     attrs = subprocess.run(
