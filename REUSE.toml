@@ -22,7 +22,7 @@ path = [
   "REUSE.toml",
   ".editorconfig",
   ".gitignore",
-  ".forgejo/**",
+  ".github/**",
   "cspell.config.yaml",
   ".cspell/**",
 ]

@@ -27,7 +27,7 @@ The base layer of the configuration repositories (`setup-base`, `setup-home`, `s
 | `tests/` | Fault injection for the check scripts, run by `nix flake check` |
 | `flake.nix` | Outputs: `lib`, `packages` (the check scripts), dev shell, `formatter`, `checks`; this repository uses its own `lib.mkRepo` |
 | `REUSE.toml`, `LICENSES/` | Licence of each path |
-| `.forgejo/workflows/` | CI: `repo-check -v` in the dev shell on every push |
+| `.github/workflows/` | CI: `repo-check -v` in the dev shell on every push |
 
 ## Deviations
 

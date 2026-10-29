@@ -1,0 +1,21 @@
+# Runs repo-check -v (every check, `nix flake check` included) in the dev shell
+# on every push to main and every pull request (R-check-03, R-check-11).
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  repo-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # gitleaks scans the whole history
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: repo-check
+        run: nix develop --command repo-check -v

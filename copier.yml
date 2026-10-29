@@ -49,9 +49,9 @@ forge:
   type: str
   help: Where the repository is hosted; decides the CI workflow
   choices:
-    - codeberg
     - github
-  default: codeberg
+    - codeberg
+  default: github
 
 forge_owner:
   type: str
