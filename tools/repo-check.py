@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -411,6 +412,104 @@ def check_no_leaked_keys(files: list[str], config: dict) -> tuple[bool, str]:
     return not hits, "\n".join(hits)
 
 
+# --- R-git-07: every commit reachable from HEAD and every tag carries a good
+#     signature. Locally git verifies with the user's keyring. In CI (CI=true) there
+#     is none, so the owner's public keys go into a scratch keyring, from the URL in
+#     REPO_CHECK_SIGNING_KEYS or else from the forge, which serves a user's keys at
+#     $GITHUB_SERVER_URL/$GITHUB_REPOSITORY_OWNER.gpg (GitHub and Forgejo alike).
+#     %G? G is good, U good with a key of unknown validity, which an imported key
+#     is; anything else fails, and so does a lightweight tag, which has no
+#     signature to carry. ---
+GOOD_SIGNATURE = {"G", "U"}
+
+
+def ci_keyring() -> tuple[str | None, str]:
+    """A scratch GNUPGHOME holding the owner's public keys, else why not."""
+    src = os.environ.get("REPO_CHECK_SIGNING_KEYS", "")
+    if not src:
+        server = os.environ.get("GITHUB_SERVER_URL", "")
+        owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "")
+        if not (server and owner):
+            return None, "    no keys to verify with: set REPO_CHECK_SIGNING_KEYS"
+        src = f"{server}/{owner}.gpg"
+    try:
+        with urllib.request.urlopen(src, timeout=30) as response:
+            keys = response.read()
+    except (urllib.error.URLError, ValueError) as e:
+        return None, f"    keys not fetched from {src} ({e})"
+    home = tempfile.mkdtemp(prefix="repo-check-gnupg-")
+    imported = subprocess.run(
+        ["gpg", "--batch", "--quiet", "--homedir", home, "--import"],
+        input=keys,
+        capture_output=True,
+        check=False,
+    )
+    if imported.returncode != 0:
+        return None, f"    keys from {src} not imported: {imported.stderr.decode()}"
+    return home, src
+
+
+def check_signatures() -> tuple[bool, str]:
+    has_head = (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+    tags = git("for-each-ref", "--format=%(refname:short) %(objecttype)", "refs/tags")
+    if not has_head and not tags:
+        return True, "    no commits or tags yet"
+    env = dict(os.environ)
+    if os.environ.get("CI") == "true":
+        home, why = ci_keyring()
+        if home is None:
+            return False, why
+        env["GNUPGHOME"] = home
+    msgs = []
+    commits = 0
+    if has_head:
+        log = subprocess.run(
+            ["git", "log", "--format=%H %G? %s", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+        ).stdout.splitlines()
+        commits = len(log)
+        for line in log:
+            sha, status, subject = (line.split(" ", 2) + [""])[:3]
+            if status not in GOOD_SIGNATURE:
+                msgs.append(
+                    f"    {sha[:8]} not signed with a good signature ({status}): {subject}"
+                )
+    for line in tags:
+        name, kind = line.rsplit(" ", 1)
+        if kind != "tag":
+            msgs.append(f"    tag {name}: lightweight, so it carries no signature")
+            continue
+        verified = subprocess.run(
+            ["git", "verify-tag", "--raw", name],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        if "[GNUPG:] GOODSIG" not in verified.stderr:
+            msgs.append(f"    tag {name}: not signed with a good signature")
+    if env.get("GNUPGHOME") != os.environ.get("GNUPGHOME"):
+        subprocess.run(
+            ["gpgconf", "--homedir", env["GNUPGHOME"], "--kill", "all"],
+            capture_output=True,
+            check=False,
+        )
+        shutil.rmtree(env["GNUPGHOME"], ignore_errors=True)
+    if msgs:
+        return False, "\n".join(msgs)
+    return True, f"    {commits} commit(s) and {len(tags)} tag(s) signed"
+
+
 # --- unresolved merge-conflict markers: these strings at line start mean nothing
 #     else. ---
 CONFLICT = re.compile(r"^(<{7}|={7}|>{7})( |$)")
@@ -645,6 +744,7 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
                 "gitleaks", "git", "--redact", "--no-banner", "--log-level", "warn", "."
             ),
         ),
+        ("signed commits and tags", check_signatures),
         ("no merge-conflict markers", lambda: check_no_conflict_markers(text)),
         (
             "git hooks stay executable",

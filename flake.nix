@@ -39,6 +39,14 @@
           name = "commit-msg-check";
           text = builtins.readFile ./tools/commit-msg-check.sh;
         };
+        pre-push-check = pkgs.writeShellApplication {
+          name = "pre-push-check";
+          runtimeInputs = [
+            pkgs.git
+            pkgs.gnupg
+          ];
+          text = builtins.readFile ./tools/pre-push-check.sh;
+        };
       });
 
       checks = forAllSystems (
@@ -49,7 +57,11 @@
         }
         // import ./tests {
           inherit pkgs lib;
-          inherit (self.packages.${pkgs.stdenv.hostPlatform.system}) repo-check commit-msg-check;
+          inherit (self.packages.${pkgs.stdenv.hostPlatform.system})
+            repo-check
+            commit-msg-check
+            pre-push-check
+            ;
         }
       );
     };

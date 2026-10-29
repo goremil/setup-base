@@ -150,6 +150,7 @@ in
             ++ [
               base.packages.${pkgs.stdenv.hostPlatform.system}.repo-check
               base.packages.${pkgs.stdenv.hostPlatform.system}.commit-msg-check
+              base.packages.${pkgs.stdenv.hostPlatform.system}.pre-push-check
             ]
             ++ extraPackages pkgs;
           REPO_CHECK_CONFIG = config pkgs;
@@ -220,5 +221,6 @@ in
       ruff
       reuse
       gitleaks
+      gnupg
     ];
 }

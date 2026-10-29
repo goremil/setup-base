@@ -7,6 +7,9 @@
 set -euo pipefail
 hook="$1"
 shift
+# What the hook stops when it cannot run its check.
+action=commit
+[ "$hook" != pre-push ] || action=push
 cd "$(git rev-parse --show-toplevel)"
 
 if [ -n "${REPO_CHECK_DEVSHELL:-}" ]; then
@@ -15,13 +18,13 @@ fi
 
 fail() {
   echo "$hook: $1" >&2
-  echo "$hook: nothing was checked, so the commit is stopped. $2" >&2
+  echo "$hook: nothing was checked, so the $action is stopped. $2" >&2
   exit 1
 }
 
 command -v nix >/dev/null ||
   fail "not in the dev shell, and nix is not on PATH to enter it." \
-    "Commit from a shell that has nix, inside the repository (direnv), or run 'nix develop'."
+    "Run git from a shell that has nix, inside the repository (direnv), or run 'nix develop'."
 
 # The marker tells a failure of `nix develop` itself from a failure of the check.
 marker=$(mktemp)
@@ -33,6 +36,6 @@ HOOK_MARKER="$marker" nix develop --command bash -c \
 
 if [ "$status" -ne 0 ] && [ ! -s "$marker" ]; then
   fail "not in the dev shell, and 'nix develop' could not enter it (exit $status, its error is above)." \
-    "Fix the flake (try 'nix develop' by hand), then commit again."
+    "Fix the flake (try 'nix develop' by hand), then $action again."
 fi
 exit "$status"

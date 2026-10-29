@@ -14,6 +14,7 @@ drafts in another language
 no private-key material
 gitleaks (staged)
 gitleaks (history)
+signed commits and tags
 no merge-conflict markers
 git hooks stay executable
 balanced Markdown code fences

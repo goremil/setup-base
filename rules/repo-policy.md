@@ -18,6 +18,10 @@ Format: each requirement has an ID, one sentence with a BCP 14 keyword (MUST, MU
 - **R-shell-03**: A bash script MUST set `set -euo pipefail` and MUST pass ShellCheck. Check: 0 → 4. Since: 2026-10-25.
 - **R-shell-04**: A script MUST take its interpreter from nixpkgs (the `devShell`, `writeShellApplication` or a Nix-built shebang). Check: 0. Since: 2026-10-25.
 
+## Git
+
+- **R-git-07**: Every commit and every tag MUST carry a good signature of its author's key; a pre-push hook and `repo-check` refuse a commit or tag that does not, and a public repository SHOULD also require signed commits in a ruleset of its forge. Check: 0 → 4. Since: 2026-10-29.
+
 ## Rule set and deviations
 
 - **R-rules-01**: Every repository MUST follow the shared rule set instead of its own habits. Check: 0 → 4. Since: 2026-10-20.

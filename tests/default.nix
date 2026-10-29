@@ -11,11 +11,13 @@
   lib,
   repo-check,
   commit-msg-check,
+  pre-push-check,
 }:
 let
   tools = lib.checkTools pkgs ++ [
     repo-check
     commit-msg-check
+    pre-push-check
   ];
   # The spelling settings a repository gets from the template, and what
   # lib.mkRepo adds for drafts in another language (R-lang-10).
@@ -192,6 +194,59 @@ in
     grep -q 'a.md missing on the forge$' "$TMPDIR/out"
     touch $out
   '';
+
+  # R-git-07 with a throwaway key: signed commits and an annotated signed tag
+  # pass, locally with the keyring and in CI with the keys fetched from a local
+  # server; an unsigned commit, a lightweight tag and CI without a key source
+  # fail. pre-push-check refuses an unsigned or fixup! commit on its way out.
+  signatures =
+    pkgs.runCommand "signatures"
+      {
+        nativeBuildInputs = tools;
+      }
+      ''
+        ${setup}
+        export GNUPGHOME="$TMPDIR/gnupg"
+        mkdir -m 700 "$GNUPGHOME"
+        gpg --batch --quiet --passphrase "" --quick-gen-key "t <t@t>" ed25519 sign never
+        git config user.signingkey t@t
+        git add -A && git commit -qS -m "feat: signed"
+        git commit -qS --allow-empty -m "fix: signed too"
+        git tag -s v1 -m v1
+        sig() { repo-check -v > "$TMPDIR/out" || true; sed -n '/^==> signed commits and tags$/,/^==> /p' "$TMPDIR/out"; }
+        sig | tee "$TMPDIR/sig"
+        grep -q '2 commit(s) and 1 tag(s) signed' "$TMPDIR/sig"
+
+        mkdir -p "$TMPDIR/keys" && gpg -a --export t@t > "$TMPDIR/keys/t.gpg"
+        python3 -m http.server --bind 127.0.0.1 --directory "$TMPDIR/keys" 8766 > "$TMPDIR/server.log" 2>&1 &
+        for _ in $(seq 50); do
+          python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8766/")' 2>/dev/null && break
+          sleep 0.1
+        done
+        CI=true REPO_CHECK_SIGNING_KEYS=http://127.0.0.1:8766/t.gpg sig | tee "$TMPDIR/sig"
+        grep -q '2 commit(s) and 1 tag(s) signed' "$TMPDIR/sig"
+        CI=true sig | tee "$TMPDIR/sig"
+        grep -q 'no keys to verify with: set REPO_CHECK_SIGNING_KEYS' "$TMPDIR/sig"
+
+        printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
+        pre-push-check origin url < "$TMPDIR/push"
+
+        git commit -q --no-gpg-sign --allow-empty -m "feat: unsigned"
+        git tag light
+        sig | tee "$TMPDIR/sig"
+        grep -q 'not signed with a good signature (N): feat: unsigned' "$TMPDIR/sig"
+        grep -q 'tag light: lightweight' "$TMPDIR/sig"
+
+        printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
+        if pre-push-check origin url < "$TMPDIR/push" > "$TMPDIR/pp"; then cat "$TMPDIR/pp"; exit 1; fi
+        grep -q 'is not signed with a good signature (%G? = N): feat: unsigned' "$TMPDIR/pp"
+        git reset -q --hard HEAD~1
+        git commit -qS --allow-empty -m "fixup! feat: signed"
+        printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
+        if pre-push-check origin url < "$TMPDIR/push" > "$TMPDIR/pp"; then cat "$TMPDIR/pp"; exit 1; fi
+        grep -q 'is an unsquashed fixup! feat: signed' "$TMPDIR/pp"
+        touch $out
+      '';
 
   # lib.mkRepo turns its arguments into the deviations repo-check requires.
   mkrepo-deviations =
