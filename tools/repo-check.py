@@ -183,6 +183,34 @@ def check_mypy(py_files: list[str]) -> tuple[bool, str]:
     return ok, "\n".join(out)
 
 
+def check_statix(nix_files: list[str]) -> tuple[bool, str]:
+    out, ok = [], True
+    for f in nix_files:
+        passed, text = run_tool("statix", "check", f)
+        ok &= passed
+        if text and not passed:
+            out.append(text)
+    return ok, "\n".join(out)
+
+
+# --- no tracked symlink into the Nix store: a link the dev shell makes (a lint
+#     config) or a `result` of a build, staged by `git add -A`, points nowhere in
+#     another clone and changes with every rebuild. ---
+def check_no_store_links() -> tuple[bool, str]:
+    staged = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"], check=True, capture_output=True, text=True
+    ).stdout.split("\0")
+    msgs = []
+    for e in staged:
+        if e.startswith("120000 "):
+            path = e.split("\t", 1)[1]
+            if os.path.islink(path) and os.readlink(path).startswith("/nix/store/"):
+                msgs.append(
+                    f"    {path} -> {os.readlink(path)}: untrack it (git rm --cached)"
+                )
+    return not msgs, "\n".join(msgs)
+
+
 def is_bash_script(path: str) -> bool:
     if path.endswith(".sh"):
         return True
@@ -942,19 +970,9 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
 
     checks: list[tuple[str, Check]] = [
         ("nixfmt --check", tool(["nixfmt", "--check"], nix, "no Nix files")),
-        (
-            "statix check",
-            (
-                lambda: run_tool(
-                    "statix",
-                    "check",
-                    ".",
-                    *(a for v in config["vendored"] for a in ("-i", f"{v}**")),
-                )
-            )
-            if nix
-            else "no Nix files",
-        ),
+        # statix takes one target, and a folder would be walked past the files
+        # git gives (R-check-07): an ignored folder only .git/info/exclude names.
+        ("statix check", (lambda: check_statix(nix)) if nix else "no Nix files"),
         ("deadnix --fail", tool(["deadnix", "--fail"], nix, "no Nix files")),
         (
             "cspell",
@@ -1033,8 +1051,9 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
             else "no flake.nix",
         ),
         # Rust (a Cargo.toml at the top level): the dev shell has the toolchain.
-        # cargo-deny needs the repository's policy, deny.toml; its advisories need
-        # the network and are the repository's CI's.
+        # cargo-deny needs the repository's policy, deny.toml. It may download the
+        # crates of every target (cargo metadata), so it is not run offline; its
+        # advisories, which need the advisory database, are the repository's CI's.
         (
             "cargo fmt --check",
             needs(
@@ -1075,7 +1094,6 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
                     lambda: run_tool(
                         "cargo",
                         "deny",
-                        "--offline",
                         "check",
                         "licenses",
                         "bans",
@@ -1129,6 +1147,7 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
             check_changelog if os.path.isfile("CHANGELOG.md") else "no CHANGELOG.md",
         ),
         ("no merge-conflict markers", lambda: check_no_conflict_markers(text)),
+        ("no tracked links into the Nix store", check_no_store_links),
         (
             "git hooks stay executable",
             check_hooks_executable if os.path.isdir(".githooks") else "no .githooks",

@@ -24,6 +24,7 @@ gitleaks (history)
 signed commits and tags
 changelog covers each release tag
 no merge-conflict markers
+no tracked links into the Nix store
 git hooks stay executable
 balanced Markdown code fences
 no huge files

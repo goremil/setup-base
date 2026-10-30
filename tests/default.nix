@@ -195,6 +195,7 @@ in
         # gitleaks (staged), which scans vendored folders too
         mkdir vendor && printf 'token = "%s"\n' "$(token zZ9yY8xX7wW6vV5uU4tT3sS2rR1qQ0pP9oO8)" > vendor/new.txt
         printf '%s HEAD\n' "$(printf '<%.0s' 1 2 3 4 5 6 7)" > conflict.txt  # conflict markers
+        ln -s ${pkgs.hello} result                                   # links into the Nix store
         chmod -x .githooks/pre-commit                                # hooks executable
         printf '# Fence\n\n```sh\necho open\n' > fence.md            # code fences
         head -c 2048 /dev/zero | tr '\0' 'a' > big.txt; echo >> big.txt  # huge files
@@ -210,6 +211,7 @@ in
         grep '^==> FAILED: ' "$TMPDIR/out" | sed 's/^==> FAILED: //' > "$TMPDIR/failed"
         diff -u ${./faults-expected.txt} "$TMPDIR/failed"
         grep -q 'v0.2.0: no section in CHANGELOG.md' "$TMPDIR/out"
+        grep -q 'result -> /nix/store/.*: untrack it' "$TMPDIR/out"
         grep -q 'links.md -> missing.md: ' "$TMPDIR/out"
         grep -q 'links.md -> gone.sh: ' "$TMPDIR/out"
         grep -q 'links.md -> README.md#nowhere: ' "$TMPDIR/out"
