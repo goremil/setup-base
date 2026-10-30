@@ -48,7 +48,7 @@ nix flake check           # the flake checks and the fault-injection tests
 nix fmt                   # treefmt: nixfmt, shfmt, and ruff with the python profile
 ```
 
-A release: `changelog --tag vX.Y.Z -o CHANGELOG.md`, commit it, then `git tag -s vX.Y.Z` (R-git-08, R-git-07).
+A release: `changelog --tag vX.Y.Z -o CHANGELOG.md`, commit it as `chore(release): vX.Y.Z`, then `git tag -s vX.Y.Z` (R-git-08, R-git-07).
 
 ## Licence
 
