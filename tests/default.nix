@@ -424,9 +424,12 @@ in
         }
         render private
         render public -d visibility=public -d forge_owner=o
+        render network -d visibility=public -d forge_owner=o -d network_service=true
+        grep -q "GNU AFFERO GENERAL PUBLIC LICENSE" network/LICENSES/AGPL-3.0-only.txt
+        [ ! -e network/LICENSES/GPL-3.0-only.txt ]
         render python -d 'features=[python]'
         grep -q '"python"' python/flake.nix
-        for name in private public python; do
+        for name in private public network python; do
           (
             cd "$name"
             rm flake.nix

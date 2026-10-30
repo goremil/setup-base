@@ -38,3 +38,11 @@ path = ["template/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 setup-base contributors"
 SPDX-License-Identifier = "0BSD"
+
+# The AGPL text the template ships to a network service is under the AGPL itself,
+# which also keeps LICENSES/AGPL-3.0-only.txt in use.
+[[annotations]]
+path = ["template/**/*AGPL-3.0-only.txt*"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 setup-base contributors"
+SPDX-License-Identifier = "AGPL-3.0-only"
