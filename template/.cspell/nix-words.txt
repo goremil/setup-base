@@ -18,6 +18,7 @@ devshell
 devshells
 devenv
 direnv
+envrc
 nix-direnv
 nixos-rebuild
 nixos-option
