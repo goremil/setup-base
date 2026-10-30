@@ -125,6 +125,7 @@ recursiveUpdate
 escapeShellArg
 getExe
 elem
+vendored
 getBin
 getLib
 mainProgram

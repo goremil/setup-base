@@ -11,5 +11,4 @@ mdlint
 oxendict
 scrumguides
 unsquashed
-vendored
 wikilinks

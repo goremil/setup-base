@@ -11,7 +11,7 @@ See [AGENTS.md](AGENTS.md) for how to work in this repository.
 ```sh
 nix develop             # every check tool; enables the git hooks
 repo-check              # every check, one report; -v for each output
-nix fmt -- <files>      # format Nix files
+nix fmt                 # treefmt: nixfmt, shfmt, and ruff with the python profile
 nix flake update base   # the next version of the managed set
 ```
 {%- if visibility == 'public' %}
