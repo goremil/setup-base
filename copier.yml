@@ -45,17 +45,9 @@ network_service:
   default: false
   when: "{{ visibility == 'public' }}"
 
-forge:
-  type: str
-  help: Where the repository is hosted; decides the CI workflow
-  choices:
-    - github
-    - codeberg
-  default: github
-
 forge_owner:
   type: str
-  help: The user or organization owning the repository on the forge
+  help: The user or organization owning the repository on GitHub
   when: "{{ visibility == 'public' }}"
   validator: "{% if not forge_owner %}Required.{% endif %}"
 

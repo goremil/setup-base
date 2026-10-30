@@ -22,7 +22,7 @@
         # looks for workflows.
         extraChecks =
           let
-            workflow = "template/{% if forge == 'github' %}.github{% endif %}/workflows/check.yml";
+            workflow = "template/.github/workflows/check.yml";
           in
           [
             {

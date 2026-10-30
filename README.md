@@ -37,7 +37,7 @@ cd <new-repo> && git init && git add -A
 nix develop --command repo-check   # entering the shell enables the hooks
 ```
 
-Give the forge URL, not a local clone: `.copier-answers.yml` records the source, and a local path would end up in the repository. The questions: `project_name`, `description`, `visibility` (`private` or `public`; public repositories get REUSE licensing and its check), `network_service` (public only: AGPL-3.0-only instead of GPL-3.0-only for the code), `forge` (`github`, the default, or `codeberg`, for the CI workflow), `forge_owner` (public only) and `features` (the named tool profiles above). Later template versions arrive with `copier update` from inside the repository. Copier takes the latest release tag (`v0.1.0` and later) unless `--vcs-ref` names another.
+Give the forge URL, not a local clone: `.copier-answers.yml` records the source, and a local path would end up in the repository. The questions: `project_name`, `description`, `visibility` (`private` or `public`; public repositories get REUSE licensing and its check), `network_service` (public only: AGPL-3.0-only instead of GPL-3.0-only for the code), `forge_owner` (public only) and `features` (the named tool profiles above). Later template versions arrive with `copier update` from inside the repository. Copier takes the latest release tag (`v0.1.0` and later) unless `--vcs-ref` names another.
 
 ## Development
 

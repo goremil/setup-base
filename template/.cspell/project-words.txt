@@ -1,3 +1,1 @@
 # Words specific to the repository (names, acronyms, jargon), one per line.
-codeberg
-forgejo

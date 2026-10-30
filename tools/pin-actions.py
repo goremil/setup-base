@@ -2,8 +2,8 @@
 
 Usage: pin-actions [--check] [FILE...]
 
-Default files: .github/workflows/*.yml and *.yaml, and a Copier template's workflows
-(template/<folder>/workflows/, the folder named by a Jinja expression).
+Default files: .github/workflows/*.yml and *.yaml, and the same in a
+Copier template (template/.github/workflows/).
 
 Each `uses: OWNER/REPO[/PATH]@REF` whose comment, or else whose REF, is a version
 (`v7`, `v7.0.1`) moves to the commit of OWNER/REPO's latest release, the release's
@@ -59,7 +59,7 @@ def main() -> int:
     args = parser.parse_args()
     files = args.files or sorted(
         f
-        for pattern in (".github/workflows/*.y*ml", "template/*/workflows/*.y*ml")
+        for pattern in (".github/workflows/*.y*ml", "template/.github/workflows/*.y*ml")
         for f in glob.glob(pattern)
     )
     cache: dict[str, tuple[str, str]] = {}
