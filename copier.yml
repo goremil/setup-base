@@ -59,6 +59,14 @@ forge_owner:
   when: "{{ visibility == 'public' }}"
   validator: "{% if not forge_owner %}Required.{% endif %}"
 
+features:
+  type: str
+  help: Tool profiles without a marker file (Rust, REUSE and GitHub workflows are found by their files); repo-check refuses Python files when the python profile is off
+  multiselect: true
+  choices:
+    - python
+  default: []
+
 code_licence:
   type: str
   default: "{{ 'AGPL-3.0-only' if network_service else 'GPL-3.0-only' }}"

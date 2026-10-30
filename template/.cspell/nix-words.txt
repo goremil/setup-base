@@ -123,6 +123,7 @@ nameValuePair
 recursiveUpdate
 escapeShellArg
 getExe
+elem
 getBin
 getLib
 mainProgram

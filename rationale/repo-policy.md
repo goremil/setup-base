@@ -24,6 +24,12 @@ The same way of working across projects, picked from recognized standards, with 
 - `%G?` `U` passes: a good signature whose key has no trust set, which is what a freshly imported key is. A lightweight tag fails, because it has no signature to carry.
 - Tests: `tests/default.nix` `signatures`, with a throwaway key (signed commits and tag pass, locally and in CI with keys from a local server; an unsigned commit, a lightweight tag, CI with no key source and an outgoing unsigned or `fixup!` commit fail), and the `faults` test, whose unsigned history must fail this check.
 
+## R-git-08
+
+- The commit subjects are already Conventional Commits (commit-msg-check), so the changelog is a projection of history, not a second text to keep in step. git-cliff 2.13 reads them; the managed configuration (`tools/cliff.toml`) writes plain forge Markdown: its default template uses emoji (`no-emoji`) and reference links.
+- The check asks only that each release tag has a section: comparing the whole file with fresh output would fail on the commit that adds the section for a tag not made yet. Maintenance types are left out, as a reader of a release asks what changed for them.
+- Tests: `tests/default.nix` `repo-check-faults` (a tag without a section).
+
 ## R-rules-01 to R-rules-03
 
 - R-rules-01: the rule core lives in `setup-base`, pinned by each repository as a flake input, so every repository reads the same version and a change arrives by a visible update.

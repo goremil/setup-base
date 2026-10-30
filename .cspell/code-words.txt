@@ -1,12 +1,18 @@
 # Tokens found only in code (identifiers, flags, package names), one per line.
+analyzer
+clippy
 EACCES
 endswith
+mypy
 GITCRYPT
 GNUPGHOME
 mkrepo
 nonl
+println
 rstrip
+rustc
 signingkey
 tlsv
 urllib
 urlopen
+zizmor

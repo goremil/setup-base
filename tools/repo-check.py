@@ -15,7 +15,10 @@ arguments: `exclude` (regexes per check), `hugeFileKiB`, `extraChecks` (name and
 command, run like the tool checks) and `vendored` (folders kept verbatim, which every
 check but gitleaks skips), `public`, `draftLanguages` and `cspellImports` (R-lang-10:
 drafts in another language, refused in a public repository and spell-checked with
-the dictionaries imported on top of the repository's cspell config).
+the dictionaries imported on top of the repository's cspell config),
+`buildInHook` (false: outside CI, `nix flake check` evaluates without building) and
+`features` (the tool profiles the dev shell has; files of a profile that is off
+fail their checks, so a missing tool is never a silent skip).
 """
 
 import argparse
@@ -30,9 +33,13 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 VERBOSE = False
+
+# A check: a function returning (passed, output), or the reason it is skipped.
+Check = Callable[[], tuple[bool, str]] | str
 
 DEFAULT_CONFIG = {
     "exclude": {
@@ -40,6 +47,8 @@ DEFAULT_CONFIG = {
         "keys": [],
         "trailing-whitespace": [r"\.lock$"],
         "final-newline": [r"\.lock$"],
+        "encoding": [],
+        "file-names": [],
     },
     "hugeFileKiB": 1024,
     "extraChecks": [],
@@ -49,6 +58,8 @@ DEFAULT_CONFIG = {
     "public": False,
     "draftLanguages": [],
     "cspellImports": [],
+    "buildInHook": True,
+    "features": None,
 }
 
 
@@ -69,6 +80,8 @@ def load_config() -> dict:
             "public",
             "draftLanguages",
             "cspellImports",
+            "buildInHook",
+            "features",
         ):
             if key in given:
                 config[key] = given[key]
@@ -114,8 +127,29 @@ def repo_files(config: dict) -> list[str]:
     ]
 
 
+def text_unset(files: list[str]) -> set[str]:
+    """The files .gitattributes marks as not text (`-text`, `binary`)."""
+    if not files:
+        return set()
+    out = subprocess.run(
+        ["git", "check-attr", "-z", "--stdin", "text"],
+        input="\0".join(files),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split("\0")
+    return {path for path, value in zip(out[0::3], out[2::3]) if value == "unset"}
+
+
+# Text is what git would diff as text: no NUL byte, and not marked binary in
+# .gitattributes (a git-crypt key file is binary without a NUL byte).
 def text_files(files: list[str]) -> list[str]:
-    return [f for f in files if os.path.getsize(f) > 0 and not is_binary(f)]
+    binary = text_unset(files)
+    return [
+        f
+        for f in files
+        if f not in binary and os.path.getsize(f) > 0 and not is_binary(f)
+    ]
 
 
 def run_tool(*cmd: str, env: dict | None = None) -> tuple[bool, str]:
@@ -131,6 +165,22 @@ def run_tool(*cmd: str, env: dict | None = None) -> tuple[bool, str]:
     except FileNotFoundError:
         return False, f"    {cmd[0]}: not found (is this the devShell?)"
     return out.returncode == 0, out.stdout.rstrip("\n")
+
+
+# --- mypy in its default mode: it checks what is annotated and leaves an
+#     unannotated script alone. One run per file, since two scripts of the same
+#     name in different folders would be one module to mypy; imports without
+#     stubs are not followed. The cache stays under .git/ (MYPY_CACHE_DIR). ---
+def check_mypy(py_files: list[str]) -> tuple[bool, str]:
+    out, ok = [], True
+    for f in py_files:
+        passed, text = run_tool(
+            "mypy", "--ignore-missing-imports", "--no-error-summary", f
+        )
+        ok &= passed
+        if text and not passed:
+            out.append(text)
+    return ok, "\n".join(out)
 
 
 def is_bash_script(path: str) -> bool:
@@ -153,29 +203,61 @@ CSPELL_CONFIGS = [
 YAMLLINT_CONFIGS = [".yamllint", ".yamllint.yml", ".yamllint.yaml"]
 
 
-# --- no dead relative .md links, in prose: a link shown as code is an example. Links
-#     out of the repository are the next check's. ---
-MD_LINK = re.compile(r"\]\([^)]+\.md[^)]*\)")
-
-
+# --- no broken links inside the repository (R-link-12): lychee, offline, with
+#     `#heading` fragments, on every link target, not only .md files. A link shown as
+#     code is an example and lychee skips it. Links out of the repository are the
+#     next check's, so their errors are dropped here; web links are blocked offline
+#     and reported as excluded, not broken. ---
 def leaves_repo(path: str) -> bool:
     """A path relative to the top level that points outside it, symlinks not followed."""
     return os.path.relpath(os.path.abspath(path)).startswith("..")
 
 
-def check_md_links(md_files: list[str]) -> tuple[bool, str]:
+def check_links(md_files: list[str]) -> tuple[bool, str]:
+    try:
+        out = subprocess.run(
+            [
+                "lychee",
+                "--offline",
+                "--include-fragments",
+                "--no-progress",
+                "--format",
+                "json",
+                "--files-from",
+                "-",
+            ],
+            check=False,
+            input="\n".join(md_files) + "\n",
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return False, "    lychee: not found (is this the devShell?)"
+    try:
+        report = json.loads(out.stdout)
+    except json.JSONDecodeError:
+        return False, (out.stdout + out.stderr).rstrip("\n")
     msgs = []
-    for f in md_files:
-        base = os.path.dirname(f)
-        for _, _, prose in prose_lines(f):
-            for match in MD_LINK.findall(prose):
-                link = match[2:-1].split("#", 1)[0]
-                if re.match(r"[a-z]+:", link) or leaves_repo(os.path.join(base, link)):
+    for source, errors in sorted(report.get("error_map", {}).items()):
+        for e in errors:
+            url = e["url"]
+            if url.startswith("file://"):
+                target = urllib.parse.unquote(urllib.parse.urlsplit(url).path)
+                if leaves_repo(target):
                     continue
-                target = os.path.realpath(os.path.join(base, link))
-                if not os.path.isfile(target):
-                    msgs.append(f"    {f} -> {link} (missing)")
-    return not msgs, "\n".join(msgs)
+                url = os.path.relpath(target) + (
+                    "#" + url.split("#", 1)[1] if "#" in url else ""
+                )
+            status = e.get("status", {})
+            text = status.get("text", status) if isinstance(status, dict) else status
+            msgs.append(f"    {os.path.relpath(source)} -> {url}: {text}")
+    if msgs:
+        return False, "\n".join(msgs)
+    stats = (
+        f"    {report.get('total', 0)} link(s), {report.get('successful', 0)} ok, "
+        f"{report.get('excludes', 0)} excluded (web links offline)"
+    )
+    return True, stats if VERBOSE else ""
 
 
 # --- links out of the repository by a local path (R-link-15): a pair, the remote link
@@ -251,6 +333,7 @@ def check_outside_links(md_files: list[str]) -> tuple[bool, str]:
                     else None
                 )
                 if remote:
+                    assert prev is not None  # a remote half is matched in prev
                     pairs += 1
                     if in_ci:
                         if why := forge_has(remote, token):
@@ -407,6 +490,60 @@ KEY_PATTERNS = [
 ]
 
 
+# --- text is UTF-8 without a byte-order mark (R-lang-01). Binary files are not
+#     text (text_files). A file that must be in another encoding, where UTF-8 is
+#     unavailable, goes into `exclude.encoding`. ---
+BOM = b"\xef\xbb\xbf"
+
+
+def check_utf8(files: list[str], config: dict) -> tuple[bool, str]:
+    msgs = []
+    for f in files:
+        if excluded(config, "encoding", f):
+            continue
+        with open(f, "rb") as fh:
+            data = fh.read()
+        if data.startswith(BOM):
+            msgs.append(f"    {f}: starts with a byte-order mark")
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError as e:
+            line = data[: e.start].count(b"\n") + 1
+            msgs.append(f"    {f}:{line}: not UTF-8 (byte 0x{data[e.start]:02x})")
+    return not msgs, "\n".join(msgs)
+
+
+# --- file names are kebab-case (R-link-02): lowercase words joined by hyphens, a
+#     dot before each extension. Also passing: a leading dot (.gitignore), an
+#     all-caps name (README.md, SHA256SUMS), snake_case where the language needs it
+#     for module names (.rs, .py), names a tool fixes (Cargo.toml, insta's
+#     snapshots), folders a tool owns (LICENSES/ for REUSE, .git-crypt/), and a
+#     name that is a Jinja template (Copier's `{{ … }}`, `{% … %}`), which is a
+#     name only once rendered. Only the file's own name is checked, not its
+#     folders. Anything else goes into `exclude.file-names`. ---
+NAME_PATTERNS = [
+    re.compile(r"^\.?[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$"),
+    re.compile(r"^[A-Z0-9]+(-[A-Z0-9]+)*(\.[a-z0-9]+)*$"),
+    re.compile(r"^_{0,2}[a-z0-9]+(_[a-z0-9]+)*_{0,2}\.(rs|py)$"),
+    re.compile(r"^(Cargo\.(toml|lock)|Makefile|Dockerfile|Justfile)$"),
+    re.compile(r"^[a-z0-9_]+\.snap(\.new)?$"),
+]
+TOOL_FOLDERS = ("LICENSES/", ".git-crypt/")
+
+
+def check_file_names(files: list[str], config: dict) -> tuple[bool, str]:
+    msgs = []
+    for f in files:
+        if f.startswith(TOOL_FOLDERS) or excluded(config, "file-names", f):
+            continue
+        name = os.path.basename(f)
+        if "{{" in name or "{%" in name:
+            continue
+        if not any(p.match(name) for p in NAME_PATTERNS):
+            msgs.append(f"    {f}: {name!r} is not kebab-case")
+    return not msgs, "\n".join(msgs)
+
+
 def check_no_leaked_keys(files: list[str], config: dict) -> tuple[bool, str]:
     hits = []
     for f in files:
@@ -430,7 +567,7 @@ def check_no_leaked_keys(files: list[str], config: dict) -> tuple[bool, str]:
 GIT_CRYPT_HEADER = b"\0GITCRYPT\0"
 
 
-def git_crypt_files() -> list[tuple[str, str, str]]:
+def git_crypt_files() -> list[tuple[str, str, bool]]:
     """(path, blob ID in the index, whether line endings are forced) of each tracked
     file, not a symlink, with filter=git-crypt."""
     staged = subprocess.run(
@@ -682,6 +819,30 @@ def check_final_newline(files: list[str], config: dict) -> tuple[bool, str]:
     return not msgs, "\n".join(msgs)
 
 
+# --- every release tag (vX.Y.Z) has its section in CHANGELOG.md (R-git-08), as
+#     `changelog --tag vX.Y.Z -o CHANGELOG.md` writes it before the tag is made. ---
+RELEASE_TAG = re.compile(r"^v(\d+\.\d+\.\d+)$")
+
+
+def check_changelog() -> tuple[bool, str]:
+    text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+    versions = [m[1] for t in git("tag", "-l") if (m := RELEASE_TAG.match(t))]
+    missing = [
+        v
+        for v in versions
+        if not re.search(rf"^## {re.escape(v)} ", text, re.MULTILINE)
+    ]
+    if missing:
+        return False, "\n".join(
+            f"    v{v}: no section in CHANGELOG.md (changelog -o CHANGELOG.md)"
+            for v in missing
+        )
+    return (
+        True,
+        f"    {len(versions)} release tag(s), each with its section" if VERBOSE else "",
+    )
+
+
 # --- deviations (T4, R-rules-03): the "Deviations" table in AGENTS.md has a row
 #     per departure from the setup-base rule core, with a rule ID that exists
 #     there, what differs, the reason, a date and a decision. A departure that
@@ -743,7 +904,7 @@ def check_deviations(config: dict) -> tuple[bool, str]:
     return False, "\n".join(bad)
 
 
-def checks_for(config: dict) -> list[tuple[str, object]]:
+def checks_for(config: dict) -> list[tuple[str, Check]]:
     files = repo_files(config)
     text = text_files(files)
     nix = [f for f in text if f.endswith(".nix")]
@@ -754,11 +915,32 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
     cspell_config = next((c for c in CSPELL_CONFIGS if os.path.isfile(c)), None)
     yamllint_config = next((c for c in YAMLLINT_CONFIGS if os.path.isfile(c)), None)
     crypt = git_crypt_files()
+    cargo = os.path.isfile("Cargo.toml")
+    workflows = [f for f in yaml if re.match(r"\.github/workflows/[^/]+$", f)]
+    build_checks = config["buildInHook"] or os.environ.get("CI") == "true"
 
-    def tool(cmd: list[str], files: list[str], reason: str) -> object:
+    features = config["features"]
+
+    def tool(cmd: list[str], files: list[str], reason: str) -> Check:
         return (lambda: run_tool(*cmd, *files)) if files else reason
 
-    checks: list[tuple[str, object]] = [
+    def needs(feature: str, files: list[str], check: Check) -> Check:
+        """A check whose tool comes with a profile: with files and the profile off,
+        it fails and says how to switch the profile on."""
+        if (
+            features is None
+            or feature in features
+            or not files
+            or isinstance(check, str)
+        ):
+            return check
+        return lambda: (
+            False,
+            f"    {len(files)} file(s) need the {feature!r} tool profile: "
+            f'add "{feature}" to `features` in lib.mkRepo',
+        )
+
+    checks: list[tuple[str, Check]] = [
         ("nixfmt --check", tool(["nixfmt", "--check"], nix, "no Nix files")),
         (
             "statix check",
@@ -792,27 +974,129 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
             ),
         ),
         ("shellcheck", tool(["shellcheck"], sh, "no bash scripts")),
-        ("ruff check", tool(["ruff", "check"], py, "no Python files")),
+        # shfmt takes its style from .editorconfig (switch_case_indent).
+        ("shfmt -d", tool(["shfmt", "-d"], sh, "no bash scripts")),
+        # GitHub workflows: actionlint for their syntax and the shell in `run:`,
+        # zizmor for their security (unpinned actions, broad tokens, injection),
+        # offline, so a hook needs no network or token.
+        (
+            "actionlint",
+            needs(
+                "github-actions",
+                workflows,
+                tool(["actionlint"], workflows, "no GitHub workflows"),
+            ),
+        ),
+        (
+            "zizmor",
+            needs(
+                "github-actions",
+                workflows,
+                tool(
+                    ["zizmor", "--offline", "--no-progress"],
+                    workflows,
+                    "no GitHub workflows",
+                ),
+            ),
+        ),
+        (
+            "ruff check",
+            needs("python", py, tool(["ruff", "check"], py, "no Python files")),
+        ),
         (
             "ruff format --check",
-            tool(["ruff", "format", "--check"], py, "no Python files"),
+            needs(
+                "python", py, tool(["ruff", "format", "--check"], py, "no Python files")
+            ),
+        ),
+        (
+            "mypy",
+            needs("python", py, (lambda: check_mypy(py)) if py else "no Python files"),
         ),
         (
             "reuse lint",
-            (lambda: run_tool("reuse", "lint"))
+            needs("reuse", ["REUSE.toml"], lambda: run_tool("reuse", "lint"))
             if os.path.isfile("REUSE.toml")
             else "no REUSE.toml",
         ),
         (
-            "nix flake check",
-            (lambda: run_tool("nix", "flake", "check"))
+            # A repository whose checks build for minutes (a Rust workspace) sets
+            # buildInHook = false: outside CI they are evaluated, not built, and CI
+            # builds them all.
+            "nix flake check" + ("" if build_checks else " --no-build (built in CI)"),
+            (
+                lambda: run_tool(
+                    "nix", "flake", "check", *([] if build_checks else ["--no-build"])
+                )
+            )
             if os.path.isfile("flake.nix")
             else "no flake.nix",
         ),
-        ("no broken relative .md links", lambda: check_md_links(md)),
+        # Rust (a Cargo.toml at the top level): the dev shell has the toolchain.
+        # cargo-deny needs the repository's policy, deny.toml; its advisories need
+        # the network and are the repository's CI's.
+        (
+            "cargo fmt --check",
+            needs(
+                "rust",
+                ["Cargo.toml"] if cargo else [],
+                (lambda: run_tool("cargo", "fmt", "--all", "--check"))
+                if cargo
+                else "no Cargo.toml",
+            ),
+        ),
+        (
+            "cargo clippy",
+            needs(
+                "rust",
+                ["Cargo.toml"] if cargo else [],
+                (
+                    lambda: run_tool(
+                        "cargo",
+                        "clippy",
+                        "--workspace",
+                        "--all-targets",
+                        "--locked",
+                        "--",
+                        "-D",
+                        "warnings",
+                    )
+                )
+                if cargo
+                else "no Cargo.toml",
+            ),
+        ),
+        (
+            "cargo deny",
+            needs(
+                "rust",
+                ["Cargo.toml"] if cargo else [],
+                (
+                    lambda: run_tool(
+                        "cargo",
+                        "deny",
+                        "--offline",
+                        "check",
+                        "licenses",
+                        "bans",
+                        "sources",
+                    )
+                )
+                if cargo and os.path.isfile("deny.toml")
+                else "no deny.toml"
+                if cargo
+                else "no Cargo.toml",
+            ),
+        ),
+        (
+            "no broken links (lychee)",
+            (lambda: check_links(md)) if md else "no Markdown files",
+        ),
         ("links out of the repository", lambda: check_outside_links(md)),
         ("-ize spelling in prose", lambda: check_spelling(md, config)),
         ("drafts in another language", lambda: check_drafts(md, config)),
+        ("UTF-8 text", lambda: check_utf8(text, config)),
+        ("kebab-case file names", lambda: check_file_names(files, config)),
         ("no private-key material", lambda: check_no_leaked_keys(text, config)),
         (
             "git-crypt files encrypted",
@@ -840,6 +1124,10 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
             ),
         ),
         ("signed commits and tags", check_signatures),
+        (
+            "changelog covers each release tag",
+            check_changelog if os.path.isfile("CHANGELOG.md") else "no CHANGELOG.md",
+        ),
         ("no merge-conflict markers", lambda: check_no_conflict_markers(text)),
         (
             "git hooks stay executable",
@@ -860,8 +1148,12 @@ def checks_for(config: dict) -> list[tuple[str, object]]:
             else "no AGENTS.md",
         ),
     ]
+
+    def extra_check(cmd: list[str]) -> Check:
+        return lambda: run_tool(*cmd)
+
     for extra in config["extraChecks"]:
-        checks.append((extra["name"], lambda cmd=extra["command"]: run_tool(*cmd)))
+        checks.append((extra["name"], extra_check(extra["command"])))
     return checks
 
 

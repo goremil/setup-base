@@ -15,8 +15,33 @@
       repo = lib.mkRepo {
         inherit self;
         extraPackages = pkgs: [ pkgs.copier ];
+        features = [ "python" ];
         # The lint fixtures break rules on purpose.
         markdownlint.ignores = [ "markdownlint/tests/**" ];
+        # The template's GitHub workflow lives outside .github/, where repo-check
+        # looks for workflows.
+        extraChecks =
+          let
+            workflow = "template/{% if forge == 'github' %}.github{% endif %}/workflows/check.yml";
+          in
+          [
+            {
+              name = "actionlint (template)";
+              command = [
+                "actionlint"
+                workflow
+              ];
+            }
+            {
+              name = "zizmor (template)";
+              command = [
+                "zizmor"
+                "--offline"
+                "--no-progress"
+                workflow
+              ];
+            }
+          ];
         exclude = {
           keys = [ "^tools/repo-check\\.py$" ];
           # The licence includes have no final newline on purpose: the included

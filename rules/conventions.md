@@ -6,7 +6,7 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 
 ## Language and text
 
-- **R-lang-01**: Text MUST be UTF-8, except in a context where UTF-8 is unavailable. Check: 0. Since: not recorded.
+- **R-lang-01**: Text MUST be UTF-8 without a byte-order mark, except in a context where UTF-8 is unavailable. Check: 4 (`repo-check`, "UTF-8 text"; an exception goes into `exclude.encoding`). Since: not recorded, byte-order mark 2026-10-29.
 - **R-lang-02**: Before rewording content to get around a character that breaks a renderer or parser, the author SHOULD look for a UTF-8 character that looks the same (`⟨domain⟩` for `<domain>`); a real ASCII-only constraint MUST be named as an exception. Check: 0. Since: 2026-09.
 - **R-lang-03**: Text MUST use the extended Latin alphabet; a proper noun or trademark in another script MUST come with a Latin transliteration. Check: 0. Since: not recorded.
 - **R-lang-04**: Everything written to a file or repository MUST be in international English in Oxford spelling (`en-GB-oxendict`: British spelling with `-ize`), except a draft under R-lang-10; a proper noun or idiom in another language MUST come with a transliteration and a translation. Check: 4 in part (cspell with the managed profile, the `-ize` check of `repo-check`), else 0 + 1. Since: not recorded; Oxford spelling 2026-10-27.
@@ -26,14 +26,14 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 
 - **R-md-01**: Emphasis MUST be `**bold**` and `_italic_`. Check: 4 (MD049, MD050 in every lint profile). Since: not recorded.
 - **R-md-02**: Tables MUST be compact: `| a | b |`, delimiter row `| --- | --- |`, one space inside each pipe, no column padding. Check: 4 (MD060 `compact`). Since: 2026-10-18.
-- **R-md-03**: Prose MUST be one paragraph per line, without hard wraps at a fixed column. Check: 0 (MD013 is off; a formatter is open). Since: 2026-10-20.
+- **R-md-03**: Prose MUST be one paragraph per line, without hard wraps at a fixed column. Check: 0 (MD013 is off; no Markdown formatter fits the other rules, see the rationale). Since: 2026-10-20.
 - **R-md-05**: Every repository MUST take its lint configs from the shared profiles, pinned through `setup-base` (managed, T3), with any change recorded as a deviation; `extends` MUST NOT be used in a repository. Check: 4 (`repo-check`: a tracked own config needs a recorded deviation). Since: 2026-10-24; managed since 2026-10-25.
 - **R-md-06**: Inside a repository the forge profile MUST apply at the root and in `docs/`, the agent profile in `.agents/`; inline disable comments SHOULD NOT be used. Check: 0. Since: 2026-10-24.
 
 ## Links
 
 - **R-link-01**: Links MUST be CommonMark inline links with a path relative to the linking file, `.md` extension included; wiki-links (`[[name]]`) MUST NOT be used, except in a format a harness dictates. Check: 4 (custom rule `no-wikilinks`). Since: 2026-10-24.
-- **R-link-02**: File names MUST be kebab-case without spaces. Check: 0. Since: 2026-10-24.
+- **R-link-02**: File names MUST be kebab-case without spaces; a leading dot, an all-caps name (`README.md`), snake_case where a language needs it for module names (`.rs`, `.py`), names a tool fixes, folders a tool owns (`LICENSES/`, `.git-crypt/`) and names that are Jinja templates are allowed. Check: 4 (`repo-check`, "kebab-case file names"; an exception goes into `exclude.file-names`). Since: 2026-10-24, exceptions 2026-10-29.
 - **R-link-03**: A link MUST NOT use an absolute path or a leading `/`. Check: 0. Since: 2026-10-24.
 - **R-link-04**: Agent and hybrid Markdown MUST link to files, not to headings; a section that needs its own link target MUST become its own note. Forge Markdown MAY link to a heading in the GitHub slug form (`#my-section`). Check: 4 for forge (MD051), else 0. Since: 2026-10-24.
 - **R-link-05**: A public repository MUST NOT link outside itself. Check: 0. Since: 2026-10-24.
@@ -42,7 +42,7 @@ Format as in [repo-policy.md](repo-policy.md): ID, one sentence with a BCP 14 ke
 - **R-link-08**: An identifier as link text MUST be in backticks (`` [`disko.nix`](path) ``), descriptive link text without; a bare URL MUST be an autolink (`<https://…>`). Check: 4 in part (MD044, cspell on visible link text). Since: 2026-10-25.
 - **R-link-09**: The link text for a file MUST be its name, or the shortest unambiguous path when the name is ambiguous (`system/INDEX.md`); a line number MUST go in plain text next to the link ("line 40"), not in an anchor. Check: 0. Since: 2026-10-25.
 - **R-link-10**: A folder SHOULD NOT be linked until folder links are checked in Obsidian and the VSCodium preview; link its `INDEX.md` or `README.md`, or leave it as a PATH. Check: 0. Since: 2026-10-25.
-- **R-link-12**: Links MUST be kept valid by tools: a link checker (lychee, offline by default), editor link validation and link update on move, MD051 for anchors. Check: 4 for anchors, else 0 + report. Since: 2026-10-24.
+- **R-link-12**: Links MUST be kept valid by tools: a link checker (lychee, offline by default), editor link validation and link update on move, MD051 for anchors. Check: 4 (`repo-check`: lychee offline with fragments for links inside the repository, MD051 for anchors in the same file; R-link-15 for links out). Since: 2026-10-24, lychee in `repo-check` 2026-10-29.
 - **R-link-15**: A link to a place outside the repository by a local path MUST take one of two forms. A place in a repository with a remote: the remote link, then its local twin, `[name](https://…) ([local](relative-path))`. A place with no remote, such as content kept only locally: `name ([local](relative-path))`. The local path is relative (R-link-03). A link by URL alone, such as to a web page, needs no local twin. Any other link out of the repository by a local path is an error. Check: 0 → 4 (`repo-check`: locally the local half and the match of a pair, a missing clone reported, not failed; in CI the remote half through the forge's API, anonymously for a public repository and with a read-only token for a private one; local-only links skipped in CI and counted). Since: 2026-10-27.
 
 ## `INDEX.md` files

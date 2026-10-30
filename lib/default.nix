@@ -43,7 +43,7 @@ in
       # [ { name; command = [ argv ]; } ]: run by repo-check like its tool checks.
       extraChecks ? [ ],
       # { <check> = [ regex ]; } for spelling, keys, huge-files,
-      # trailing-whitespace and final-newline.
+      # trailing-whitespace, final-newline, encoding and file-names.
       exclude ? { },
       hugeFileKiB ? 1024,
       # { profile; overrides; ignores; directories; } for markdownlint, or
@@ -53,6 +53,12 @@ in
       # tracked file of that name is left alone. Overrides are deviations and
       # go into the repository's AGENTS.md.
       markdownlint ? { },
+      # [ profile ]: the profiles with no marker file this repository needs:
+      # "python" (see coreTools).
+      features ? [ ],
+      # false: outside CI, repo-check evaluates the flake checks without building
+      # them (a Rust workspace builds for minutes); CI still builds them all.
+      buildInHook ? true,
       # [ folder ]: folders kept verbatim, such as copies of other projects'
       # files, relative to the root and ending in a slash. Every check skips
       # them except gitleaks; a deviation of R-check-07.
@@ -61,6 +67,22 @@ in
     let
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
       hasReuse = builtins.pathExists (self + "/REUSE.toml");
+      # Profiles by marker file, and the named ones. A Rust repository on another
+      # nixpkgs sets `inputs.base.inputs.nixpkgs.follows`, so the shell's clippy
+      # is its own.
+      detected =
+        lib.optional (builtins.pathExists (self + "/Cargo.toml")) "rust"
+        ++ lib.optional hasReuse "reuse"
+        ++ lib.optional (builtins.pathExists (self + "/.github/workflows")) "github-actions"
+        ++ lib.optional (builtins.pathExists (self + "/CHANGELOG.md")) "changelog";
+      named = lib.unique features;
+      unknown = lib.subtractLists [ "python" ] named;
+      enabled =
+        if unknown != [ ] then
+          throw "mkRepo: unknown features ${builtins.toJSON unknown}; the named one is python"
+        else
+          lib.sort lib.lessThan (lib.unique (named ++ detected));
+      featurePackages = pkgs: lib.concatMap (f: (base.lib.featureTools pkgs).${f}) enabled;
       # The root gets `profile` with `overrides` and `ignores`; each folder in
       # `directories` that exists gets its own settings (R-md-06: agent in
       # .agents/). markdownlint-cli2 lets a folder's config replace its
@@ -117,6 +139,8 @@ in
           ++ lib.optional (markdownlint ? directories) (deviation "R-md-06" "markdownlint.directories")
         )
         ++ lib.optional ((exclude.spelling or [ ]) != [ ]) (deviation "R-lang-04" "exclude.spelling")
+        ++ lib.optional ((exclude.encoding or [ ]) != [ ]) (deviation "R-lang-01" "exclude.encoding")
+        ++ lib.optional ((exclude.file-names or [ ]) != [ ]) (deviation "R-link-02" "exclude.file-names")
         ++ lib.optional (vendored != [ ]) (deviation "R-check-07" "vendored");
       config =
         pkgs:
@@ -128,7 +152,9 @@ in
               extraChecks
               requiredDeviations
               vendored
+              buildInHook
               ;
+            features = enabled;
             rulesDir = "${base}/rules";
             # R-lang-10: drafts in another language are checked with its
             # dictionary, and refused in a public repository.
@@ -141,21 +167,65 @@ in
         );
     in
     {
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      # `nix fmt`: treefmt with each formatter repo-check checks against, for the
+      # profiles this repository has. shfmt takes its style from .editorconfig;
+      # a script without an extension outside .githooks/ is checked by repo-check but
+      # formatted by hand (`shfmt -w`). Rust keeps `cargo fmt`, which knows the
+      # edition.
+      formatter = forAllSystems (
+        pkgs:
+        pkgs.treefmt.withConfig {
+          runtimeInputs = [
+            pkgs.nixfmt
+            pkgs.shfmt
+          ]
+          ++ lib.optional (lib.elem "python" enabled) pkgs.ruff;
+          settings = {
+            tree-root-file = "flake.nix";
+            on-unmatched = "debug";
+            excludes = map (v: "${v}**") vendored;
+            formatter = {
+              nixfmt = {
+                command = "nixfmt";
+                includes = [ "*.nix" ];
+              };
+              shfmt = {
+                command = "shfmt";
+                options = [ "-w" ];
+                includes = [
+                  "*.sh"
+                  "*.bash"
+                  ".githooks/*"
+                ];
+              };
+            }
+            // lib.optionalAttrs (lib.elem "python" enabled) {
+              ruff = {
+                command = "ruff";
+                options = [ "format" ];
+                includes = [ "*.py" ];
+              };
+            };
+          };
+        }
+      );
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages =
-            base.lib.checkTools pkgs
+            base.lib.coreTools pkgs
+            ++ featurePackages pkgs
             ++ [
               base.packages.${pkgs.stdenv.hostPlatform.system}.repo-check
               base.packages.${pkgs.stdenv.hostPlatform.system}.commit-msg-check
               base.packages.${pkgs.stdenv.hostPlatform.system}.pre-push-check
             ]
+            ++ lib.optional (lib.elem "rust" enabled) pkgs.rust-analyzer
             ++ extraPackages pkgs;
           REPO_CHECK_CONFIG = config pkgs;
           # Caches stay under .git/ (R-check-08); repo-check runs from the top level.
           RUFF_CACHE_DIR = ".git/ruff-cache";
+          MYPY_CACHE_DIR = ".git/mypy-cache";
           # REPO_CHECK_DEVSHELL tells the hooks they already run in this shell.
           # Entering it points git at the tracked hooks, so a clone needs no
           # manual step (R-check-06).
@@ -206,21 +276,59 @@ in
     };
   };
 
-  # Every tool repo-check calls; it skips the ones a repository has no files for.
-  checkTools =
+  # The tools repo-check calls, as a core every repository gets and profiles
+  # (`features`) a repository gets when it needs them. A profile is switched on
+  # by a marker file (rust, reuse, github-actions, changelog) or named in mkRepo's
+  # `features` (python), since finding a .py file would walk the tree on
+  # every evaluation. repo-check refuses files whose profile is off, so a profile
+  # left out is never a check skipped in silence.
+  coreTools =
     pkgs: with pkgs; [
       git
+      gnupg
+      gitleaks
       python3
       nixfmt
       statix
       deadnix
       cspell
       markdownlint-cli2
+      lychee
       yamllint
+      # Every repository has bash: its .githooks/.
       shellcheck
-      ruff
-      reuse
-      gitleaks
-      gnupg
+      shfmt
     ];
+
+  featureTools = pkgs: {
+    python = with pkgs; [
+      ruff
+      mypy
+    ];
+    rust = with pkgs; [
+      cargo
+      rustc
+      clippy
+      rustfmt
+      cargo-deny
+    ];
+    reuse = [ pkgs.reuse ];
+    github-actions = with pkgs; [
+      actionlint
+      zizmor
+    ];
+    # `changelog --tag vX.Y.Z -o CHANGELOG.md` before tagging a release (R-git-08):
+    # git-cliff with the managed configuration.
+    changelog = [
+      (pkgs.writeShellApplication {
+        name = "changelog";
+        runtimeInputs = [ pkgs.git-cliff ];
+        text = ''exec git-cliff --config ${../tools/cliff.toml} "$@"'';
+      })
+    ];
+  };
+
+  # Every tool of the core and every profile, for the tests.
+  checkTools =
+    pkgs: base.lib.coreTools pkgs ++ lib.concatLists (lib.attrValues (base.lib.featureTools pkgs));
 }

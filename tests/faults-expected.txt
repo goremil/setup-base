@@ -5,17 +5,24 @@ cspell
 markdownlint
 yamllint
 shellcheck
+shfmt -d
+actionlint
+zizmor
 ruff check
 ruff format --check
-no broken relative .md links
+mypy
+no broken links (lychee)
 links out of the repository
 -ize spelling in prose
 drafts in another language
+UTF-8 text
+kebab-case file names
 no private-key material
 git-crypt files encrypted
 gitleaks (staged)
 gitleaks (history)
 signed commits and tags
+changelog covers each release tag
 no merge-conflict markers
 git hooks stay executable
 balanced Markdown code fences

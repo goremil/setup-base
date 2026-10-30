@@ -4,6 +4,20 @@
   # The managed set: check tools, repo-check, hooks' commands, formatter and
   # checks. `nix flake update base` brings a new version; flake.lock pins it.
   inputs.base.url = "git+https://github.com/goremil/setup-base";
+{%- if features %}
+
+  outputs =
+    { self, base }:
+    base.lib.mkRepo {
+      inherit self;
+      features = [
+{%- for f in features %}
+        "{{ f }}"
+{%- endfor %}
+      ];
+    };
+{%- else %}
 
   outputs = { self, base }: base.lib.mkRepo { inherit self; };
+{%- endif %}
 }

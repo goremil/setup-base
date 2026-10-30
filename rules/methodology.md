@@ -33,7 +33,7 @@ Source ranking, highest first:
 ## Structure
 
 - **R-structure-01**: Agent configuration and memory content MUST live in exactly one place, with everything else pointing to it (as `AGENTS.md`, `CLAUDE.md` and `INDEX.md` do). Check: 0 + 1 (a duplicate finder). Since: 2026-09.
-- **R-structure-03**: A new project SHOULD mirror the global layer at project scope: a thin root `AGENTS.md`, `.agents/memory/INDEX.md`, `.agents/tools/`, holding only project-specific content and reusing the global tools. Check: 0 → 4 (seeded by the template). Since: 2026-09.
+- **R-structure-03**: A new project SHOULD mirror the global layer at project scope: a thin root `AGENTS.md`, `.agents/memory/INDEX.md`, `.agents/tools/`, holding only project-specific content and reusing the global tools; each part is created when it has content, not seeded empty (R-index-03). Check: 0. Since: 2026-09, not seeded 2026-10-29.
 - **R-structure-04**: Software we build MUST NOT change how the host system normally treats devices or other software (no hooks or rules that alter it); it MUST use what the system provides (standard interfaces, service-manager features, existing drivers). Only the project's own processes and services MAY differ from the defaults. Check: 0 + 1. Since: 2026-10-13.
 - **R-structure-05**: The agent SHOULD minimize dependency on specific tools when solving a problem. Check: 0. Since: 2026-09.
 

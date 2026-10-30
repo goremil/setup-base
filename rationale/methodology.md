@@ -16,7 +16,7 @@ Explanation for the requirements in [methodology.md](../rules/methodology.md), o
 ## R-structure-01 to R-structure-05
 
 - R-structure-01: one source of truth stops copies from drifting apart.
-- R-structure-03: a project mirrors the global layer so that agents find project rules where they expect them; the template in `setup-base` seeds this layout.
+- R-structure-03: a project mirrors the global layer so that agents find project rules where they expect them. The template does not seed `.agents/`: an empty `INDEX.md` would break R-index-03 (decided 2026-10-29).
 - R-structure-04: no reason was recorded with the decision.
 
 ## R-consent-01 to R-consent-04

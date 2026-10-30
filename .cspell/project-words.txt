@@ -2,7 +2,9 @@
 attrsets
 Codeberg
 Forgejo
+insta
 jinja
+mdformat
 linted
 linters
 mdlint

@@ -19,6 +19,7 @@ Instructions for any agent, human or AI, working in this repository.
 | Path | Content |
 | --- | --- |
 | `flake.nix` | Dev shell, `formatter` and `checks` from `setup-base` |
+| `.envrc` | direnv enters the dev shell (`use flake`) |
 | `.githooks/` | pre-commit (`repo-check`), commit-msg and pre-push (signed and squashed commits, R-git-07), in the dev shell |
 | `.markdownlint-cli2.jsonc` | Lint profile, linked by the dev shell; untracked |
 | `cspell.config.yaml`, `.cspell/` | Spell-check settings and word lists of this repository; `oxford.yaml`, `oxford-ize.txt` and `nix-words.txt` are the managed profile, replaced by `copier update` |

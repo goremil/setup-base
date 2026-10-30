@@ -26,7 +26,10 @@ let
     cspellImports = [ "${(lib.cspellDictionaries pkgs).pl}/cspell-ext.json" ];
   };
   setup = ''
-    export HOME="$TMPDIR" RUFF_CACHE_DIR="$TMPDIR/ruff-cache"
+    export HOME="$TMPDIR" RUFF_CACHE_DIR="$TMPDIR/ruff-cache" MYPY_CACHE_DIR="$TMPDIR/mypy-cache"
+    # lychee builds its HTTP client even offline, and the sandbox's SSL_CERT_FILE
+    # names no file.
+    export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
     export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
     mkdir repo && cd repo
     git init -q -b main
@@ -34,11 +37,12 @@ let
     printf '#!/usr/bin/env bash\nset -euo pipefail\necho hook\n' > .githooks/pre-commit
     chmod +x .githooks/pre-commit
     printf '{ pkgs }: pkgs.hello\n' > default.nix
-    printf '# Title\n\nSee [the notes](notes.md).\n\n```sh\necho hi\n```\n' > README.md
+    printf '# Title\n\nSee [the notes](notes.md#notes) and [the script](run.sh).\n\n```sh\necho hi\n```\n' > README.md
     # Code is not prose: the spelling and link checks skip fences and code spans.
     printf '# Notes\n\nOrganize the colours with `color`, linked as `[x](gone.md)`.\n\n```css\na { color: red; }\n```\n' > notes.md
     printf 'a: 1\n' > config.yaml
-    printf '#!/usr/bin/env bash\nset -euo pipefail\necho "$1"\n' > run.sh
+    printf '#!/usr/bin/env bash\nset -euo pipefail\ncase "$1" in\n  a) echo "$1" ;;\nesac\n' > run.sh
+    cp ${../template/.editorconfig} .editorconfig
     printf 'import sys\n\nprint(sys.argv)\n' > tool.py
     sed '/^# The repository.s name/,$d' ${../template/cspell.config.yaml.jinja} > cspell.config.yaml
     cp -r ${../template/.cspell} .cspell && chmod -R u+w .cspell cspell.config.yaml
@@ -94,6 +98,14 @@ in
         printf '# Open\n\nPlain here.\n' > secret/open.md
         printf '\0GITCRYPT\0#Heading\n' > secret/locked.md
         ln -s open.md secret/link.md
+        # Names a language fixes (Cargo.toml is in the Rust test), and a binary file without a NUL byte
+        # (a git-crypt key file), which no text check reads.
+        mkdir LICENSES && printf 'licence text\n' > LICENSES/GPL-3.0-only.txt
+        printf 'fn main() {}\n' > my_mod.rs
+        printf '*.key binary\n' >> .gitattributes
+        printf 'k\351y' > a.key
+        # The workflow a repository gets, which actionlint and zizmor pass.
+        mkdir -p .github/workflows && cp ${../.github/workflows/check.yml} .github/workflows/check.yml
         git add -A
         REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
         grep -q '2 file(s) encrypted with git-crypt, 1 locked here' "$TMPDIR/out"
@@ -139,13 +151,24 @@ in
         printf 'token = "%s"\n' "$(token aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5)" > old.txt
         git add -A && git commit -qm init
         git rm -q old.txt && git commit -qm 'drop it'
+        # changelog: a release tag with no section (v0.1.0 has one)
+        git tag v0.1.0 HEAD~1 && git tag v0.2.0
+        printf '# Changelog\n\n## 0.1.0 - 2026-10-30\n\n- first\n' > CHANGELOG.md
         # One fault per check:
         printf '{ unused }: let a = 1; in { a = a; }\n' > bad.nix  # nixfmt, statix, deadnix
         printf '#Heading\n' > lint.md                                # markdownlint
         printf 'a: [1, 2\n' > broken.yaml                            # yamllint
         printf '#!/usr/bin/env bash\necho $1\n' > unsafe.sh          # shellcheck
+        printf '#!/usr/bin/env bash\nset -euo pipefail\nif true;then echo x;fi\n' > fmt.sh  # shfmt
+        # actionlint: a job without runs-on; zizmor: an action not pinned by commit
+        mkdir -p .github/workflows
+        printf 'on: push\npermissions: {}\njobs:\n  a:\n    steps:\n      - run: "true"\n' > .github/workflows/lint.yml
+        printf 'on: push\npermissions: {}\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          persist-credentials: false\n' > .github/workflows/pin.yml
         printf 'import os\nx=1\n' > unused.py                        # ruff check, ruff format
-        printf '# Links\n\n[gone](missing.md)\n' > links.md          # .md links
+        printf 'x: int = "a"\n' > typed.py                          # mypy
+        # links inside the repository: a missing file, a missing non-Markdown target,
+        # a missing fragment
+        printf '# Links\n\n[gone](missing.md), [script](gone.sh), [fragment](README.md#nowhere)\n' > links.md
         # links out of the repository: halves that disagree, a file missing in its
         # clone, a link out with no form
         printf '# Out\n\n[d.md](https://c.org/o/b/src/branch/main/d.md) ([local](../b/e.md))\n\n[a.md](https://c.org/o/b/src/branch/main/a.md) ([local](../b/a.md))\n\n[d](../b/d.md)\n' > out.md
@@ -159,6 +182,9 @@ in
         printf '{"import": ["%s"]}\n' "$TMPDIR/allow.json" > "$TMPDIR/xdg/cspell/cspell.json"
         export XDG_CONFIG_HOME="$TMPDIR/xdg"
         printf '# Szkic\n\nNotatka.\n' > draft.pl.md               # a draft, public repository
+        printf 'caf\351\n' > latin1.txt                               # UTF-8: Latin-1
+        printf '\357\273\277bom\n' > bom.txt                          # UTF-8: a byte-order mark
+        printf 'x\n' > Bad_Name.txt                                  # kebab-case file names
         printf -- '-----BEGIN %s PRIVATE KEY-----\n' OPENSSH > key.txt  # private-key material
         # git-crypt: a file given to it, with no filter set up in this clone, and one
         # forced to text by a nested .gitattributes
@@ -183,6 +209,13 @@ in
         [ "$status" -eq 1 ]
         grep '^==> FAILED: ' "$TMPDIR/out" | sed 's/^==> FAILED: //' > "$TMPDIR/failed"
         diff -u ${./faults-expected.txt} "$TMPDIR/failed"
+        grep -q 'v0.2.0: no section in CHANGELOG.md' "$TMPDIR/out"
+        grep -q 'links.md -> missing.md: ' "$TMPDIR/out"
+        grep -q 'links.md -> gone.sh: ' "$TMPDIR/out"
+        grep -q 'links.md -> README.md#nowhere: ' "$TMPDIR/out"
+        grep -q 'latin1.txt:1: not UTF-8 (byte 0xe9)' "$TMPDIR/out"
+        grep -q 'bom.txt: starts with a byte-order mark' "$TMPDIR/out"
+        grep -q "Bad_Name.txt: 'Bad_Name.txt' is not kebab-case" "$TMPDIR/out"
         grep -q '../b/e.md: does not match' "$TMPDIR/out"
         grep -q '../b/a.md (missing)' "$TMPDIR/out"
         grep -q '../b/d.md: write' "$TMPDIR/out"
@@ -274,6 +307,97 @@ in
         touch $out
       '';
 
+  # A Rust workspace: cargo fmt, clippy and cargo-deny pass on a clean crate and
+  # fail on one fault each. buildInHook = false names the flake check it narrows.
+  repo-check-rust =
+    pkgs.runCommand "repo-check-rust"
+      {
+        nativeBuildInputs = tools;
+        config = builtins.toJSON { buildInHook = false; };
+        passAsFile = [ "config" ];
+      }
+      ''
+        ${setup}
+        export CARGO_HOME="$TMPDIR/cargo"
+        printf '[package]\nname = "t"\nversion = "0.1.0"\nedition = "2021"\nlicense = "MIT"\n' > Cargo.toml
+        mkdir src && printf 'fn main() {\n    println!("hi");\n}\n' > src/main.rs
+        printf '[licenses]\nallow = ["MIT"]\n' > deny.toml
+        printf 'target/\n' > .gitignore
+        cargo generate-lockfile --offline
+        git add -A
+        REPO_CHECK_CONFIG="$configPath" repo-check -v | tee "$TMPDIR/out"
+        grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/out"
+        grep -q 'skipped: nix flake check --no-build (built in CI) (no flake.nix)' "$TMPDIR/out"
+
+        # One fault each: formatting, a clippy lint, a licence deny.toml does not allow.
+        printf 'fn main() { let x = 5; if x == x { println!("hi"); } }\n' > src/main.rs
+        sed -i 's/license = "MIT"/license = "0BSD"/' Cargo.toml
+        git add -A
+        status=0
+        REPO_CHECK_CONFIG="$configPath" repo-check > "$TMPDIR/out" || status=$?
+        cat "$TMPDIR/out"
+        [ "$status" -eq 1 ]
+        grep '^==> FAILED: ' "$TMPDIR/out" | sed 's/^==> FAILED: //' > "$TMPDIR/failed"
+        printf 'cargo fmt --check\ncargo clippy\ncargo deny\n' | diff -u - "$TMPDIR/failed"
+        touch $out
+      '';
+
+  # A profile left off while its files are there fails its checks: the setup has
+  # a Python file, and no profile is named.
+  repo-check-features =
+    pkgs.runCommand "repo-check-features"
+      {
+        nativeBuildInputs = tools;
+        config = builtins.toJSON { features = [ ]; };
+        passAsFile = [ "config" ];
+      }
+      ''
+        ${setup}
+        git add -A
+        status=0
+        REPO_CHECK_CONFIG="$configPath" repo-check > "$TMPDIR/out" || status=$?
+        cat "$TMPDIR/out"
+        [ "$status" -eq 1 ]
+        grep '^==> FAILED: ' "$TMPDIR/out" | sed 's/^==> FAILED: //' > "$TMPDIR/failed"
+        printf 'ruff check\nruff format --check\nmypy\n' | diff -u - "$TMPDIR/failed"
+        grep -q "1 file(s) need the 'python' tool profile" "$TMPDIR/out"
+        touch $out
+      '';
+
+  # lib.mkRepo switches profiles on by marker file and by name, and refuses an
+  # unknown name. setup-base itself has CHANGELOG.md, REUSE.toml and
+  # .github/workflows/.
+  mkrepo-features =
+    let
+      enabled =
+        args:
+        (builtins.fromJSON (
+          builtins.unsafeDiscardStringContext (
+            builtins.readFile
+              (lib.mkRepo ({ self = ../.; } // args))
+              .devShells.${pkgs.stdenv.hostPlatform.system}.default.REPO_CHECK_CONFIG
+          )
+        )).features;
+      bad = builtins.tryEval (enabled {
+        features = [ "cobol" ];
+      });
+    in
+    assert
+      enabled { } == [
+        "changelog"
+        "github-actions"
+        "reuse"
+      ];
+    assert
+      enabled { features = [ "python" ]; } == [
+        "changelog"
+        "github-actions"
+        "python"
+        "reuse"
+      ];
+    assert !bad.success;
+    pkgs.runCommand "mkrepo-features" { } "touch $out";
+
   # lib.mkRepo turns its arguments into the deviations repo-check requires.
   mkrepo-deviations =
     let
@@ -319,13 +443,19 @@ in
               overrides.MD013 = true;
               directories = { };
             };
-            exclude.spelling = [ "x" ];
+            exclude = {
+              spelling = [ "x" ];
+              encoding = [ "x" ];
+              file-names = [ "x" ];
+            };
           })
           [
             "R-md-05"
             "R-md-06"
             "R-md-06"
             "R-lang-04"
+            "R-lang-01"
+            "R-link-02"
           ]
       + "touch $out"
     );
