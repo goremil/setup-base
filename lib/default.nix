@@ -116,7 +116,12 @@ in
       # The root's `ignores` take the vendored folders too, for editors that
       # lint every open file.
       rootLint = builtins.removeAttrs lint [ "directories" ] // {
-        ignores = (lint.ignores or [ ]) ++ map (v: "${v}**") vendored;
+        ignores =
+          (lint.ignores or [ ])
+          ++ map (v: "${v}**") vendored
+          # Generated from the commit subjects (R-git-08), which commit-msg-check
+          # checks; prose rules such as MD044 would fault a subject's wording.
+          ++ lib.optional (lib.elem "changelog" enabled) "CHANGELOG.md";
       };
       lintLink =
         pkgs:
