@@ -12,6 +12,8 @@
   repo-check,
   commit-msg-check,
   pre-push-check,
+  pin-actions,
+  forge-ruleset,
 }:
 let
   tools = lib.checkTools pkgs ++ [
@@ -435,6 +437,72 @@ in
           )
           grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/$name.out"
         done
+        touch $out
+      '';
+
+  # pin-actions against a local server with the API's paths: an action behind
+  # its latest release is reported by --check and moved by a plain run; a branch
+  # reference is left alone.
+  pin-actions =
+    pkgs.runCommand "pin-actions"
+      {
+        nativeBuildInputs = [
+          pkgs.python3
+          pin-actions
+        ];
+      }
+      ''
+        sha=0123456789abcdef0123456789abcdef01234567
+        mkdir -p api/repos/o/a/releases api/repos/o/a/commits
+        printf '{"tag_name": "v2.1.0"}' > api/repos/o/a/releases/latest
+        printf '%s' "$sha" > api/repos/o/a/commits/v2.1.0
+        python3 -m http.server --bind 127.0.0.1 --directory api 8767 > server.log 2>&1 &
+        for _ in $(seq 50); do
+          python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8767/")' 2>/dev/null && break
+          sleep 0.1
+        done
+        export PIN_ACTIONS_API=http://127.0.0.1:8767
+        mkdir -p .github/workflows
+        printf 'jobs:\n  a:\n    steps:\n      - uses: o/a@v2\n      - uses: o/b@main # main, 2026-10\n' > .github/workflows/w.yml
+        cp .github/workflows/w.yml before.yml
+        if pin-actions --check > out; then cat out; exit 1; fi
+        grep -q 'o/a v2 -> v2.1.0' out
+        grep -q 'o/b@main (not a version, left alone)' out
+        cmp before.yml .github/workflows/w.yml
+        pin-actions
+        grep -q "uses: o/a@$sha # v2.1.0" .github/workflows/w.yml
+        grep -q 'uses: o/b@main # main, 2026-10' .github/workflows/w.yml
+        pin-actions --check | grep -q '1 action(s) at their latest release'
+        touch $out
+      '';
+
+  # forge-ruleset against a local server that keeps rulesets in memory: missing
+  # and then created, changed and then updated, and a private repository on
+  # GitHub Free (403) skipped.
+  forge-ruleset =
+    pkgs.runCommand "forge-ruleset"
+      {
+        nativeBuildInputs = [
+          pkgs.python3
+          forge-ruleset
+        ];
+      }
+      ''
+        cp ${./forge-api.py} server.py
+        python3 server.py > server.log 2>&1 &
+        for _ in $(seq 50); do
+          python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8768/repos/o/x/rulesets")' 2>/dev/null && break
+          sleep 0.1
+        done
+        export FORGE_RULESET_API=http://127.0.0.1:8768
+        if forge-ruleset check o/new o/drift > out; then cat out; exit 1; fi
+        grep -q "o/new: 'signed commits' missing" out
+        grep -q "o/drift: 'signed commits' differs" out
+        forge-ruleset apply o/new o/drift o/private | tee out
+        grep -q "o/new: 'signed commits' created" out
+        grep -q "o/drift: 'signed commits' updated" out
+        grep -q 'o/private: no rulesets (private on GitHub Free), skipped' out
+        forge-ruleset check o/new o/drift
         touch $out
       '';
 

@@ -60,6 +60,16 @@
         repo-check = pkgs.writeScriptBin "repo-check" (
           "#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./tools/repo-check.py
         );
+        pin-actions = pkgs.writeScriptBin "pin-actions" (
+          "#!${pkgs.python3}/bin/python3\n" + builtins.readFile ./tools/pin-actions.py
+        );
+        forge-ruleset = pkgs.runCommand "forge-ruleset" { } ''
+          mkdir -p $out/bin $out/share/forge-ruleset
+          cp ${./tools/ruleset.json} $out/share/forge-ruleset/ruleset.json
+          { echo "#!${pkgs.python3}/bin/python3"; cat ${./tools/forge-ruleset.py}; } > $out/share/forge-ruleset/forge-ruleset
+          chmod +x $out/share/forge-ruleset/forge-ruleset
+          ln -s $out/share/forge-ruleset/forge-ruleset $out/bin/forge-ruleset
+        '';
         commit-msg-check = pkgs.writeShellApplication {
           name = "commit-msg-check";
           text = builtins.readFile ./tools/commit-msg-check.sh;
@@ -86,6 +96,8 @@
             repo-check
             commit-msg-check
             pre-push-check
+            pin-actions
+            forge-ruleset
             ;
         }
       );

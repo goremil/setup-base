@@ -313,9 +313,13 @@ in
       cargo-deny
     ];
     reuse = [ pkgs.reuse ];
-    github-actions = with pkgs; [
-      actionlint
-      zizmor
+    # pin-actions: the workflows' actions to their latest release, by commit;
+    # forge-ruleset: the default branch's ruleset on GitHub (R-git-07).
+    github-actions = [
+      pkgs.actionlint
+      pkgs.zizmor
+      base.packages.${pkgs.stdenv.hostPlatform.system}.pin-actions
+      base.packages.${pkgs.stdenv.hostPlatform.system}.forge-ruleset
     ];
     # `changelog --tag vX.Y.Z -o CHANGELOG.md` before tagging a release (R-git-08):
     # git-cliff with the managed configuration.

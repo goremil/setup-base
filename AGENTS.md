@@ -22,7 +22,7 @@ The base layer of the configuration repositories (`setup-base`, `setup-home`, `s
 | `copier.yml`, `template/` | The Copier template: questions, and the files of a new repository |
 | `lib/` | `lib.mkRepo`: a descendant's dev shell, `formatter` and `checks` from the managed set |
 | `markdownlint/` | The Markdown lint profiles, custom rules and their check; see its README |
-| `tools/` | The managed check scripts: `repo-check.py` (every check, one report), `commit-msg-check.sh` and `pre-push-check.sh`; `cliff.toml`, the changelog configuration |
+| `tools/` | The managed check scripts: `repo-check.py` (every check, one report), `commit-msg-check.sh` and `pre-push-check.sh`; `cliff.toml`, the changelog configuration; `pin-actions.py`, `forge-ruleset.py` and its `ruleset.json` |
 | `CHANGELOG.md` | One section per release tag, written by `changelog` (R-git-08) |
 | `cspell.config.yaml`, `.cspell/` | Spell-check settings and word lists; the managed profile is imported from `template/.cspell/` |
 | `tests/` | Fault injection for the check scripts, run by `nix flake check` |

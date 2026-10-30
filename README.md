@@ -22,7 +22,7 @@ Every dev shell has the core: git, GnuPG, gitleaks, Python (for `repo-check`), n
 | --- | --- | --- |
 | `rust` | cargo, rustc, clippy, rustfmt, cargo-deny, rust-analyzer | `Cargo.toml` |
 | `reuse` | reuse | `REUSE.toml` |
-| `github-actions` | actionlint, zizmor | `.github/workflows/` |
+| `github-actions` | actionlint, zizmor, `pin-actions` (the actions to their latest release, by commit), `forge-ruleset` (the default branch's ruleset on GitHub, `tools/ruleset.json`) | `.github/workflows/` |
 | `changelog` | `changelog` (git-cliff with the managed `tools/cliff.toml`) | `CHANGELOG.md` |
 | `python` | ruff, mypy | `features = [ "python" ]` in `lib.mkRepo` |
 
