@@ -398,6 +398,44 @@ in
     assert !bad.success;
     pkgs.runCommand "mkrepo-features" { } "touch $out";
 
+  # The template renders a repository that passes repo-check, for each set of
+  # answers that changes what it writes. The flake is left out: `nix flake
+  # check` cannot run in the sandbox.
+  template =
+    pkgs.runCommand "template"
+      {
+        nativeBuildInputs = tools ++ [ pkgs.copier ];
+        config = builtins.toJSON { rulesDir = "${../rules}"; };
+        passAsFile = [ "config" ];
+      }
+      ''
+        export HOME="$TMPDIR" SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+        export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+        cp -r ${../.} src && chmod -R u+w src
+        render() {
+          name=$1
+          shift
+          copier copy --quiet --defaults -d project_name=demo -d 'description=A demo.' "$@" src "$name"
+          [ -f "$name/.envrc" ]
+        }
+        render private
+        render public -d visibility=public -d forge_owner=o
+        render python -d 'features=[python]'
+        grep -q '"python"' python/flake.nix
+        for name in private public python; do
+          (
+            cd "$name"
+            rm flake.nix
+            # What the dev shell links: the default lint profile.
+            ln -s ${lib.markdownlint.config pkgs { }}/.markdownlint-cli2.jsonc .
+            git init -q -b main && git add -A
+            REPO_CHECK_CONFIG="$configPath" repo-check | tee "$TMPDIR/$name.out"
+          )
+          grep -q '^repo-check: all [0-9]* checks passed' "$TMPDIR/$name.out"
+        done
+        touch $out
+      '';
+
   # lib.mkRepo turns its arguments into the deviations repo-check requires.
   mkrepo-deviations =
     let
