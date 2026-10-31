@@ -40,7 +40,10 @@ in
       systems ? [ "x86_64-linux" ],
       # pkgs -> [ derivation ]: tools the repository needs besides the checks'.
       extraPackages ? (_: [ ]),
-      # [ { name; command = [ argv ]; } ]: run by repo-check like its tool checks.
+      # [ { name; command = [ argv ]; hook ? "check"; } ]: run by repo-check
+      # like its tool checks; with hook = "commit-msg", by commit-msg-check with
+      # the message file appended to argv; with hook = "pre-push", by
+      # pre-push-check with the rev-list arguments of each pushed ref appended.
       extraChecks ? [ ],
       # { <check> = [ regex ]; } for spelling, keys, huge-files,
       # trailing-whitespace, final-newline, encoding and file-names.

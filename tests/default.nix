@@ -144,6 +144,12 @@ in
                 name = "extra check";
                 command = [ "false" ];
               }
+              # Run by commit-msg-check, not repo-check: not in faults-expected.txt.
+              {
+                name = "message check";
+                command = [ "false" ];
+                hook = "commit-msg";
+              }
             ];
           }
         );
@@ -269,6 +275,21 @@ in
     pkgs.runCommand "signatures"
       {
         nativeBuildInputs = tools;
+        config = builtins.toJSON {
+          extraChecks = [
+            {
+              name = "no marker";
+              command = [
+                "sh"
+                "-c"
+                "! git log --format=%s \"$@\" | grep -q qwzxv"
+                "sh"
+              ];
+              hook = "pre-push";
+            }
+          ];
+        };
+        passAsFile = [ "config" ];
       }
       ''
         ${setup}
@@ -311,6 +332,16 @@ in
         printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
         if pre-push-check origin url < "$TMPDIR/push" > "$TMPDIR/pp"; then cat "$TMPDIR/pp"; exit 1; fi
         grep -q 'is an unsquashed fixup! feat: signed' "$TMPDIR/pp"
+
+        # The repository's own push checks (hook = "pre-push") get the ref's range.
+        git reset -q --hard HEAD~1
+        printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
+        REPO_CHECK_CONFIG="$configPath" pre-push-check origin url < "$TMPDIR/push"
+        git commit -qS --allow-empty -m "feat: qwzxv"
+        printf 'refs/heads/main %s refs/heads/main %s\n' "$(git rev-parse HEAD)" 0000000000000000000000000000000000000000 > "$TMPDIR/push"
+        pre-push-check origin url < "$TMPDIR/push"
+        if REPO_CHECK_CONFIG="$configPath" pre-push-check origin url < "$TMPDIR/push" > "$TMPDIR/pp"; then cat "$TMPDIR/pp"; exit 1; fi
+        grep -q '^pre-push: no marker failed on refs/heads/main:' "$TMPDIR/pp"
         touch $out
       '';
 
@@ -588,15 +619,48 @@ in
       + "touch $out"
     );
 
-  commit-msg-check = pkgs.runCommand "commit-msg-check" { nativeBuildInputs = tools; } ''
-    printf 'feat(template): ask for the forge\n' > good
-    printf '# a comment\n\nfix!: drop the old flag\n' > good-bang
-    printf 'Add a thing\n' > bad
-    printf 'feat: \n' > empty
-    commit-msg-check good
-    commit-msg-check good-bang
-    if commit-msg-check bad; then exit 1; fi
-    if commit-msg-check empty; then exit 1; fi
-    touch $out
-  '';
+  # The subject, then the repository's own message checks (hook = "commit-msg"),
+  # which get the message file; the other hooks' extra checks do not run here.
+  commit-msg-check =
+    pkgs.runCommand "commit-msg-check"
+      {
+        nativeBuildInputs = tools;
+        config = builtins.toJSON {
+          extraChecks = [
+            {
+              name = "no marker";
+              command = [
+                "sh"
+                "-c"
+                "! grep -q qwzxv \"$1\""
+                "sh"
+              ];
+              hook = "commit-msg";
+            }
+            {
+              name = "tree check";
+              command = [ "false" ];
+            }
+          ];
+        };
+        passAsFile = [ "config" ];
+      }
+      ''
+        printf 'feat(template): ask for the forge\n' > good
+        printf '# a comment\n\nfix!: drop the old flag\n' > good-bang
+        printf 'Add a thing\n' > bad
+        printf 'feat: \n' > empty
+        printf 'feat: a thing\n\nqwzxv\n' > marked
+        commit-msg-check good
+        commit-msg-check good-bang
+        if commit-msg-check bad; then exit 1; fi
+        if commit-msg-check empty; then exit 1; fi
+        commit-msg-check marked
+        export REPO_CHECK_CONFIG="$configPath"
+        commit-msg-check good
+        if commit-msg-check marked > out; then cat out; exit 1; fi
+        grep -q '^commit-msg: no marker failed:' out
+        if grep -q 'tree check' out; then cat out; exit 1; fi
+        touch $out
+      '';
 }

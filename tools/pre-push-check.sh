@@ -5,13 +5,21 @@
 #     one unverified, or rejects it where a ruleset asks for signed commits, and
 #     signing it after the push means rewriting what others may have fetched;
 #   - no fixup!/squash!/amend! commit is left: `git commit --fixup` and
-#     `git absorb` make them, `git rebase -i --autosquash` folds them in.
+#     `git absorb` make them, `git rebase -i --autosquash` folds them in;
+#   - the repository's own checks pass: the extraChecks with hook = "pre-push"
+#     in REPO_CHECK_CONFIG (lib.mkRepo), each with the ref's rev-list arguments
+#     appended to its command (`<remote sha>..<local sha>`, or for a new ref
+#     `<local sha> --not --remotes`).
 # git passes one line per ref on stdin: <local ref> <local sha> <remote ref> <remote sha>.
 # Skip with `git push --no-verify` (not recommended).
 set -euo pipefail
 
 zero=0000000000000000000000000000000000000000
 status=0
+extras=()
+if [ -n "${REPO_CHECK_CONFIG:-}" ]; then
+  mapfile -t extras < <(jq -c '.extraChecks[]? | select(.hook == "pre-push")' "$REPO_CHECK_CONFIG")
+fi
 
 while read -r local_ref local_sha _remote_ref remote_sha; do
   [ "$local_sha" != "$zero" ] || continue # deleting a remote ref
@@ -35,9 +43,18 @@ while read -r local_ref local_sha _remote_ref remote_sha; do
         ;;
     esac
   done < <(git log --format='%H %G? %s' "${range[@]}")
+  for extra in "${extras[@]}"; do
+    name=$(jq -r '.name' <<<"$extra")
+    mapfile -t command < <(jq -r '.command[]' <<<"$extra")
+    if ! output=$("${command[@]}" "${range[@]}" 2>&1); then
+      echo "pre-push: $name failed on $local_ref:"
+      printf '  %s\n' "${output//$'\n'/$'\n'  }"
+      status=1
+    fi
+  done
 done
 
 if [ "$status" -ne 0 ]; then
-  echo "pre-push: nothing was pushed. Sign the commits (git rebase --exec 'git commit --amend --no-edit -S'), fold the fixups (git rebase -i --autosquash), then push again."
+  echo "pre-push: nothing was pushed. Fix the above: sign the commits (git rebase --exec 'git commit --amend --no-edit -S'), fold the fixups (git rebase -i --autosquash), then push again."
 fi
 exit "$status"

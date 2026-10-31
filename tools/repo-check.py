@@ -12,8 +12,9 @@ Which checks run follows the files the repository has: a tool check is skipped w
 there is nothing for it (no YAML files, no cspell config). Per-repository settings
 come from the JSON file named by REPO_CHECK_CONFIG, which `lib.mkRepo` writes from its
 arguments: `exclude` (regexes per check), `hugeFileKiB`, `extraChecks` (name and
-command, run like the tool checks) and `vendored` (folders kept verbatim, which every
-check but gitleaks skips), `public`, `draftLanguages` and `cspellImports` (R-lang-10:
+command, run like the tool checks; one whose `hook` is "commit-msg" or "pre-push" is
+run by commit-msg-check or pre-push-check instead) and `vendored` (folders kept
+verbatim, which every check but gitleaks skips), `public`, `draftLanguages` and `cspellImports` (R-lang-10:
 drafts in another language, refused in a public repository and spell-checked with
 the dictionaries imported on top of the repository's cspell config),
 `buildInHook` (false: outside CI, `nix flake check` evaluates without building) and
@@ -1173,6 +1174,8 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
         return lambda: run_tool(*cmd)
 
     for extra in config["extraChecks"]:
+        if extra.get("hook", "check") != "check":
+            continue
         checks.append((extra["name"], extra_check(extra["command"])))
     return checks
 

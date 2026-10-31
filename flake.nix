@@ -72,6 +72,7 @@
         '';
         commit-msg-check = pkgs.writeShellApplication {
           name = "commit-msg-check";
+          runtimeInputs = [ pkgs.jq ];
           text = builtins.readFile ./tools/commit-msg-check.sh;
         };
         pre-push-check = pkgs.writeShellApplication {
@@ -79,6 +80,7 @@
           runtimeInputs = [
             pkgs.git
             pkgs.gnupg
+            pkgs.jq
           ];
           text = builtins.readFile ./tools/pre-push-check.sh;
         };
