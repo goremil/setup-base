@@ -173,9 +173,10 @@ in
     in
     {
       # `nix fmt`: treefmt with each formatter repo-check checks against, for the
-      # profiles this repository has. shfmt takes its style from .editorconfig;
-      # a script without an extension outside .githooks/ is checked by repo-check but
-      # formatted by hand (`shfmt -w`). Rust keeps `cargo fmt`, which knows the
+      # profiles this repository has. shfmt gets its style as flags (2 spaces,
+      # case branches indented), not from .editorconfig, which cannot name a script
+      # without an extension; such a script outside .githooks/ is checked by
+      # repo-check but formatted by hand (`shfmt -i 2 -ci -w`). Rust keeps `cargo fmt`, which knows the
       # edition.
       formatter = forAllSystems (
         pkgs:
@@ -196,7 +197,12 @@ in
               };
               shfmt = {
                 command = "shfmt";
-                options = [ "-w" ];
+                options = [
+                  "-i"
+                  "2"
+                  "-ci"
+                  "-w"
+                ];
                 includes = [
                   "*.sh"
                   "*.bash"

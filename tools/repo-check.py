@@ -992,8 +992,9 @@ def checks_for(config: dict) -> list[tuple[str, Check]]:
             ),
         ),
         ("shellcheck", tool(["shellcheck"], sh, "no bash scripts")),
-        # shfmt takes its style from .editorconfig (switch_case_indent).
-        ("shfmt -d", tool(["shfmt", "-d"], sh, "no bash scripts")),
+        # shfmt with its style as flags (2 spaces, case branches indented), so
+        # .editorconfig is ignored: it cannot name a script without an extension.
+        ("shfmt -d", tool(["shfmt", "-i", "2", "-ci", "-d"], sh, "no bash scripts")),
         # GitHub workflows: actionlint for their syntax and the shell in `run:`,
         # zizmor for their security (unpinned actions, broad tokens, injection),
         # offline, so a hook needs no network or token.

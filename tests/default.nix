@@ -45,6 +45,9 @@ let
     printf 'a: 1\n' > config.yaml
     printf '#!/usr/bin/env bash\nset -euo pipefail\ncase "$1" in\n  a) echo "$1" ;;\nesac\n' > run.sh
     cp ${../template/.editorconfig} .editorconfig
+    # A script without an extension takes shfmt's style flags, not the 4 of [*].
+    mkdir tools && printf '#!/usr/bin/env bash\nset -euo pipefail\nif true; then\n  echo x\nfi\n' > tools/cmd
+    chmod +x tools/cmd
     printf 'import sys\n\nprint(sys.argv)\n' > tool.py
     sed '/^# The repository.s name/,$d' ${../template/cspell.config.yaml.jinja} > cspell.config.yaml
     cp -r ${../template/.cspell} .cspell && chmod -R u+w .cspell cspell.config.yaml

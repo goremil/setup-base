@@ -19,9 +19,11 @@ trim_trailing_whitespace = false
 [*.nix]
 indent_size = 2
 
-# shfmt reads these (Google Shell Style Guide: 2); case branches indented,
-# the style the scripts already had. Two sections: a pattern with a slash is
-# anchored here, which would keep *.sh from matching in subfolders.
+# Shell for editors (Google Shell Style Guide: 2, case branches indented);
+# shfmt gets the same style as flags from repo-check and `nix fmt`, since no
+# section can name a script without an extension. Two sections: a pattern
+# with a slash is anchored here, which would keep *.sh from matching in
+# subfolders.
 [*.{sh,bash}]
 indent_size = 2
 switch_case_indent = true
