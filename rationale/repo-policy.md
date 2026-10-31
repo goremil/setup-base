@@ -35,9 +35,9 @@ The same way of working across projects, picked from recognized standards, with 
 
 - R-rules-01: the rule core lives in `setup-base`, pinned by each repository as a flake input, so every repository reads the same version and a change arrives by a visible update.
 - R-rules-02, the selection categories, strongest first:
-  - A, law: mandatory for everyone; comply, it is a constraint, not a choice. A contract lifts B, C or D to A for its parties.
-  - B, official and industry standards (ISO, EN, IETF, W3C, self-regulation one is a member of): rely on and cite with an exact reference.
-  - C, de facto standards and customs of the ecosystem: follow unless there is a reason not to; deviating costs compatibility.
-  - D, specifications, soft law, good practice: consider and decide deliberately.
-  - Own rules (habits, team agreements, internal policy) sit outside the categories; a solution taken from C or D binds only once written into them, with its source.
+    - A, law: mandatory for everyone; comply, it is a constraint, not a choice. A contract lifts B, C or D to A for its parties.
+    - B, official and industry standards (ISO, EN, IETF, W3C, self-regulation one is a member of): rely on and cite with an exact reference.
+    - C, de facto standards and customs of the ecosystem: follow unless there is a reason not to; deviating costs compatibility.
+    - D, specifications, soft law, good practice: consider and decide deliberately.
+    - Own rules (habits, team agreements, internal policy) sit outside the categories; a solution taken from C or D binds only once written into them, with its source.
 - R-rules-03: the record form (rule ID, what differs, reason, date, decision link) is fixed so that a check can list every deviation of a repository.

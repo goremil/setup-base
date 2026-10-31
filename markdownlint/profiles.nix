@@ -11,6 +11,7 @@ let
     MD024.siblings_only = true; # duplicate headings ok unless siblings
     MD003.style = "atx"; # # Heading
     MD004.style = "dash"; # - bullet
+    MD007.indent = 4; # nested list: 4 spaces, as .editorconfig and Obsidian
     MD046.style = "fenced";
     MD048.style = "backtick";
     MD049.style = "underscore"; # _italic_

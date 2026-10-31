@@ -443,6 +443,20 @@ in
         touch $out
       '';
 
+  # The lint profile, as the dev shell links it: a nested list takes 4 spaces
+  # (MD007), the indent of .editorconfig and Obsidian.
+  markdownlint-profile =
+    pkgs.runCommand "markdownlint-profile" { nativeBuildInputs = [ pkgs.markdownlint-cli2 ]; }
+      ''
+        ln -s ${lib.markdownlint.config pkgs { }}/.markdownlint-cli2.jsonc .
+        printf '# Four\n\n- a\n    - b\n' > four.md
+        printf '# Two\n\n- a\n  - b\n' > two.md
+        markdownlint-cli2 four.md
+        if markdownlint-cli2 two.md 2> "$TMPDIR/two.out"; then exit 1; fi
+        grep -q 'two.md:4:1 error MD007/ul-indent' "$TMPDIR/two.out"
+        touch $out
+      '';
+
   # pin-actions against a local server with the API's paths: an action behind
   # its latest release is reported by --check and moved by a plain run; a branch
   # reference is left alone.
