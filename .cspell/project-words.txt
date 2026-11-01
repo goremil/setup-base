@@ -12,3 +12,4 @@ oxendict
 scrumguides
 unsquashed
 wikilinks
+polkit
