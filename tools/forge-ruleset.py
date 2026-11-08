@@ -4,7 +4,8 @@ Usage: forge-ruleset check|apply OWNER/REPO...
 
 The rulesets are rulesets.json next to this script, each found by its name:
 signed commits on every branch and under every tag; no force-push and no
-deletion on the default branch and on every tag; no bypass. `check` compares each repository's rulesets
+deletion on the default branch and on every tag; a linear history on the
+default branch; tags never moved; no bypass. `check` compares each repository's rulesets
 of those names with them and exits 1 on a difference or a missing one; `apply`
 creates or updates them, which needs a token with the repository's
 administration permission in GH_TOKEN or GITHUB_TOKEN. GitHub Free offers rulesets

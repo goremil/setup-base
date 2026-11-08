@@ -36,6 +36,9 @@
       },
       {
         "type": "non_fast_forward"
+      },
+      {
+        "type": "required_linear_history"
       }
     ],
     "bypass_actors": []
@@ -61,6 +64,9 @@
       },
       {
         "type": "required_signatures"
+      },
+      {
+        "type": "update"
       }
     ],
     "bypass_actors": []
