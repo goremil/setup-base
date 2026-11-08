@@ -5,11 +5,17 @@
     "enforcement": "active",
     "conditions": {
       "ref_name": {
-        "include": ["~ALL"],
+        "include": [
+          "~ALL"
+        ],
         "exclude": []
       }
     },
-    "rules": [{ "type": "required_signatures" }],
+    "rules": [
+      {
+        "type": "required_signatures"
+      }
+    ],
     "bypass_actors": []
   },
   {
@@ -18,11 +24,20 @@
     "enforcement": "active",
     "conditions": {
       "ref_name": {
-        "include": ["~DEFAULT_BRANCH"],
+        "include": [
+          "~DEFAULT_BRANCH"
+        ],
         "exclude": []
       }
     },
-    "rules": [{ "type": "deletion" }, { "type": "non_fast_forward" }],
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      }
+    ],
     "bypass_actors": []
   },
   {
@@ -31,11 +46,23 @@
     "enforcement": "active",
     "conditions": {
       "ref_name": {
-        "include": ["~ALL"],
+        "include": [
+          "~ALL"
+        ],
         "exclude": []
       }
     },
-    "rules": [{ "type": "deletion" }, { "type": "non_fast_forward" }],
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "required_signatures"
+      }
+    ],
     "bypass_actors": []
   }
 ]
