@@ -65,7 +65,7 @@
         );
         forge-ruleset = pkgs.runCommand "forge-ruleset" { } ''
           mkdir -p $out/bin $out/share/forge-ruleset
-          cp ${./tools/ruleset.json} $out/share/forge-ruleset/ruleset.json
+          cp ${./tools/rulesets.json} $out/share/forge-ruleset/rulesets.json
           { echo "#!${pkgs.python3}/bin/python3"; cat ${./tools/forge-ruleset.py}; } > $out/share/forge-ruleset/forge-ruleset
           chmod +x $out/share/forge-ruleset/forge-ruleset
           ln -s $out/share/forge-ruleset/forge-ruleset $out/bin/forge-ruleset

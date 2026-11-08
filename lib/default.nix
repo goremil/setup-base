@@ -328,7 +328,7 @@ in
     ];
     reuse = [ pkgs.reuse ];
     # pin-actions: the workflows' actions to their latest release, by commit;
-    # forge-ruleset: the default branch's ruleset on GitHub (R-git-07).
+    # forge-ruleset: the repository's rulesets on GitHub (R-git-07).
     github-actions = [
       pkgs.actionlint
       pkgs.zizmor

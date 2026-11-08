@@ -1,6 +1,6 @@
 """A stand-in for GitHub's rulesets API, for the forge-ruleset test: rulesets in
 memory per repository, `o/private` answering as a private repository on GitHub
-Free, `o/drift` starting with a ruleset that differs from ruleset.json."""
+Free, `o/drift` starting with a ruleset that differs from rulesets.json."""
 
 import json
 import re

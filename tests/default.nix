@@ -547,11 +547,13 @@ in
         done
         export FORGE_RULESET_API=http://127.0.0.1:8768
         if forge-ruleset check o/new o/drift > out; then cat out; exit 1; fi
-        grep -q "o/new: 'signed commits' missing" out
+        for r in 'signed commits' 'default branch' tags; do grep -q "o/new: '$r' missing" out; done
         grep -q "o/drift: 'signed commits' differs" out
+        grep -q "o/drift: 'default branch' missing" out
         forge-ruleset apply o/new o/drift o/private | tee out
-        grep -q "o/new: 'signed commits' created" out
+        for r in 'signed commits' 'default branch' tags; do grep -q "o/new: '$r' created" out; done
         grep -q "o/drift: 'signed commits' updated" out
+        grep -q "o/drift: 'tags' created" out
         grep -q 'o/private: no rulesets (private on GitHub Free), skipped' out
         forge-ruleset check o/new o/drift
         touch $out

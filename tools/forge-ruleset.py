@@ -1,11 +1,12 @@
-"""forge-ruleset: the default branch's ruleset on GitHub, as code (R-git-07).
+"""forge-ruleset: a repository's rulesets on GitHub, as code (R-git-07).
 
 Usage: forge-ruleset check|apply OWNER/REPO...
 
-The ruleset is ruleset.json next to this script: on the default branch, signed
-commits only, no force-push, no deletion, no bypass. `check` compares each
-repository's ruleset of that name with it and exits 1 on a difference or a missing
-ruleset; `apply` creates or updates it, which needs a token with the repository's
+The rulesets are rulesets.json next to this script, each found by its name:
+signed commits on every branch; no force-push and no deletion on the default
+branch and on every tag; no bypass. `check` compares each repository's rulesets
+of those names with them and exits 1 on a difference or a missing one; `apply`
+creates or updates them, which needs a token with the repository's
 administration permission in GH_TOKEN or GITHUB_TOKEN. GitHub Free offers rulesets
 only on public repositories: a private one is reported and skipped, since its
 hooks and CI enforce R-git-07. FORGE_RULESET_API replaces the API's base URL, for
@@ -58,7 +59,7 @@ def main() -> int:
     parser.add_argument("action", choices=["check", "apply"])
     parser.add_argument("repos", nargs="+", metavar="OWNER/REPO")
     args = parser.parse_args()
-    want = json.loads((Path(__file__).resolve().parent / "ruleset.json").read_text())
+    wanted = json.loads((Path(__file__).resolve().parent / "rulesets.json").read_text())
     status = 0
     for repo in args.repos:
         try:
@@ -75,23 +76,26 @@ def main() -> int:
                 continue
             raise
         assert isinstance(listed, list)
-        found = next((r for r in listed if r.get("name") == want["name"]), None)
-        have = call("GET", f"/repos/{repo}/rulesets/{found['id']}") if found else None
-        if isinstance(have, dict) and normal(have) == normal(want):
-            print(f"forge-ruleset: {repo}: {want['name']!r} as in ruleset.json")
-            continue
-        if args.action == "check":
-            print(
-                f"forge-ruleset: {repo}: {want['name']!r} "
-                + ("differs" if have else "missing")
+        for want in wanted:
+            found = next((r for r in listed if r.get("name") == want["name"]), None)
+            have = (
+                call("GET", f"/repos/{repo}/rulesets/{found['id']}") if found else None
             )
-            status = 1
-        elif found:
-            call("PUT", f"/repos/{repo}/rulesets/{found['id']}", want)
-            print(f"forge-ruleset: {repo}: {want['name']!r} updated")
-        else:
-            call("POST", f"/repos/{repo}/rulesets", want)
-            print(f"forge-ruleset: {repo}: {want['name']!r} created")
+            if isinstance(have, dict) and normal(have) == normal(want):
+                print(f"forge-ruleset: {repo}: {want['name']!r} as in rulesets.json")
+                continue
+            if args.action == "check":
+                print(
+                    f"forge-ruleset: {repo}: {want['name']!r} "
+                    + ("differs" if have else "missing")
+                )
+                status = 1
+            elif found:
+                call("PUT", f"/repos/{repo}/rulesets/{found['id']}", want)
+                print(f"forge-ruleset: {repo}: {want['name']!r} updated")
+            else:
+                call("POST", f"/repos/{repo}/rulesets", want)
+                print(f"forge-ruleset: {repo}: {want['name']!r} created")
     return status
 
 
