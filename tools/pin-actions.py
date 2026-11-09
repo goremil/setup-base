@@ -12,8 +12,9 @@ branch, a local `./action`, a URL) is listed and left alone. With --check nothin
 written and the exit status is 1 when an action is behind. The updates are written
 locally and committed with the author's signature (R-git-07), never by a bot.
 
-GITHUB_TOKEN or GH_TOKEN, when set, raises GitHub's rate limit for anonymous calls
-(60 an hour); PIN_ACTIONS_API replaces the API's base URL, for the tests.
+GITHUB_TOKEN or GH_TOKEN, when set, or else the file GH_TOKEN_FILE names, raises
+GitHub's rate limit for anonymous calls (60 an hour); PIN_ACTIONS_API replaces the
+API's base URL, for the tests.
 """
 
 import argparse
@@ -23,6 +24,7 @@ import os
 import re
 import sys
 import urllib.request
+from pathlib import Path
 
 API = os.environ.get("PIN_ACTIONS_API", "https://api.github.com")
 USES = re.compile(
@@ -32,9 +34,22 @@ USES = re.compile(
 VERSION = re.compile(r"^v?\d+(\.\d+)*$")
 
 
+def api_token() -> str | None:
+    """The token from the environment, or else from the file GH_TOKEN_FILE names."""
+    found = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not found and os.environ.get("GH_TOKEN_FILE"):
+        try:
+            found = (
+                Path(os.environ["GH_TOKEN_FILE"]).read_text(encoding="utf-8").strip()
+            )
+        except OSError:
+            found = None
+    return found or None
+
+
 def get(path: str, accept: str = "application/vnd.github+json") -> str:
     req = urllib.request.Request(API + path, headers={"Accept": accept})
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    token = api_token()
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(req, timeout=30) as resp:

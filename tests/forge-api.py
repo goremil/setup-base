@@ -1,6 +1,7 @@
 """A stand-in for GitHub's rulesets API, for the forge-ruleset test: rulesets in
 memory per repository, `o/private` answering as a private repository on GitHub
-Free, `o/drift` starting with a ruleset that differs from rulesets.json."""
+Free, `o/drift` starting with a ruleset that differs from rulesets.json; writes
+need the token `from-file`."""
 
 import json
 import re
@@ -49,7 +50,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.reply(200, [{"id": i, "name": r["name"]} for i, r in sets.items()])
 
+    def authorized(self) -> bool:
+        """Writes only with the token the test puts in GH_TOKEN_FILE."""
+        if self.headers.get("Authorization") == "Bearer from-file":
+            return True
+        self.reply(401, {"message": "Requires authentication"})
+        return False
+
     def do_POST(self) -> None:
+        if not self.authorized():
+            return
         repo, _ = self.target()
         sets = store.setdefault(repo, {})
         ident = len(sets) + 1
@@ -57,6 +67,8 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(201, sets[ident])
 
     def do_PUT(self) -> None:
+        if not self.authorized():
+            return
         repo, ident = self.target()
         assert ident
         store[repo][ident] = dict(self.body(), id=ident)

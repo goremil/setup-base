@@ -529,7 +529,7 @@ in
 
   # forge-ruleset against a local server that keeps rulesets in memory: missing
   # and then created, changed and then updated, and a private repository on
-  # GitHub Free (403) skipped.
+  # GitHub Free (403) skipped; writes carry the token from GH_TOKEN_FILE.
   forge-ruleset =
     pkgs.runCommand "forge-ruleset"
       {
@@ -550,6 +550,10 @@ in
         for r in 'signed commits' 'default branch' tags; do grep -q "o/new: '$r' missing" out; done
         grep -q "o/drift: 'signed commits' differs" out
         grep -q "o/drift: 'default branch' missing" out
+        # A write without a token is refused; GH_TOKEN_FILE supplies one.
+        if forge-ruleset apply o/new 2>/dev/null; then exit 1; fi
+        echo from-file > token
+        export GH_TOKEN_FILE=$PWD/token
         forge-ruleset apply o/new o/drift o/private | tee out
         for r in 'signed commits' 'default branch' tags; do grep -q "o/new: '$r' created" out; done
         grep -q "o/drift: 'signed commits' updated" out

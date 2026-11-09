@@ -8,7 +8,8 @@ deletion on the default branch and on every tag; a linear history on the
 default branch; tags never moved; no bypass. `check` compares each repository's rulesets
 of those names with them and exits 1 on a difference or a missing one; `apply`
 creates or updates them, which needs a token with the repository's
-administration permission in GH_TOKEN or GITHUB_TOKEN. GitHub Free offers rulesets
+administration permission in GH_TOKEN or GITHUB_TOKEN, or else in the file
+GH_TOKEN_FILE names. GitHub Free offers rulesets
 only on public repositories: a private one is reported and skipped, since its
 hooks and CI enforce R-git-07. FORGE_RULESET_API replaces the API's base URL, for
 the tests.
@@ -26,6 +27,19 @@ API = os.environ.get("FORGE_RULESET_API", "https://api.github.com")
 FIELDS = ("target", "enforcement", "conditions", "rules", "bypass_actors")
 
 
+def api_token() -> str | None:
+    """The token from the environment, or else from the file GH_TOKEN_FILE names."""
+    found = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not found and os.environ.get("GH_TOKEN_FILE"):
+        try:
+            found = (
+                Path(os.environ["GH_TOKEN_FILE"]).read_text(encoding="utf-8").strip()
+            )
+        except OSError:
+            found = None
+    return found or None
+
+
 def call(method: str, path: str, body: dict | None = None) -> object:
     req = urllib.request.Request(
         API + path,
@@ -36,7 +50,7 @@ def call(method: str, path: str, body: dict | None = None) -> object:
             "Content-Type": "application/json",
         },
     )
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    token = api_token()
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(req, timeout=30) as resp:
